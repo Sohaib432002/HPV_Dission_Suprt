@@ -75,9 +75,7 @@ cd FrontEnd
 npm install
 npm run dev
 
-Frontend will run at:
 
-http://localhost:5173/
 4️⃣ ML Model Setup (if separate)
 cd model
 pip install -r requirements.txt
@@ -86,9 +84,10 @@ python app.py
 
 Create a .env file in backend:
 
-SECRET_KEY=your_secret_key
+
 DEBUG=True
 ALLOWED_HOSTS=*
+
 📊 Features
 🧠 HPV image-based classification
 📉 Risk level prediction (Low / Medium / High)
@@ -111,6 +110,8 @@ Vercel / Netlify
 Backend:
 
 Hugging Face Spaces 
+
+
 👨‍💻 Author
 
 Sohaib Maqsood
