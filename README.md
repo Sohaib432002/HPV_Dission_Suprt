@@ -115,7 +115,10 @@ Hugging Face Spaces
 👨‍💻 Author
 
 Sohaib Maqsood
+
+
 Final Year Project – BS Mathematics
+
 
 📌 Note
 
