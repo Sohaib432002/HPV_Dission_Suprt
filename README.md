@@ -53,7 +53,9 @@ project-root/
 └── README.md
 ⚙️ Installation & Setup
 1️⃣ Clone Repository
-git clone https://github.com/your-username/your-repo-name.git
+
+https://github.com/Sohaib432002/HPV_Dission_Suprt.git
+
 cd your-repo-name
 2️⃣ Backend Setup (Django)
 cd Backend
