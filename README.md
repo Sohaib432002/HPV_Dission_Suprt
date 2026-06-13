@@ -1,75 +1,119 @@
-# React + TypeScript + Vite
+HPV Research & Prediction System (Final Year Project)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A full-stack web-based healthcare platform for analyzing, predicting, and visualizing Human Papillomavirus (HPV) infection and cervical cancer risk using Machine Learning, mathematical modeling, and modern web technologies.
 
-Currently, two official plugins are available:
+🚀 Project Overview
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+This project integrates:
 
-## React Compiler
+🧠 Machine Learning model (ResNet-based / Python TensorFlow)
+🌐 Frontend (React + TypeScript)
+⚙️ Backend (Django REST Framework)
+📊 Data visualization dashboards
+🔐 JWT-based authentication system
+📈 Medical report generation & risk classification
 
-The React Compiler is enabled on this template. See [this documentation](https://react.dev/learn/react-compiler) for more information.
+It is designed to assist researchers, lab engineers, and healthcare professionals in understanding HPV progression and risk analysis through image-based prediction and analytical dashboards.
 
-Note: This will impact Vite dev & build performances.
+🏗️ Tech Stack
 
-## Expanding the ESLint configuration
+Frontend:
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+React.js
+TypeScript
+Tailwind CSS
+Framer Motion
+Recharts
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+Backend:
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+Django
+Django REST Framework
+Python
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+Machine Learning:
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+TensorFlow / Keras
+ResNet Model
+NumPy, Pandas
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+Database:
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+SQLite 
+
+📁 Project Structure
+
+project-root/
+│
+├── FrontEnd/              # React frontend
+├── Backend/              # Django backend
+├── model/                # ML model (ResNet / training scripts)
+├── requirements.txt     # Python dependencies
+├── package.json         # Frontend dependencies
+└── README.md
+⚙️ Installation & Setup
+1️⃣ Clone Repository
+git clone https://github.com/your-username/your-repo-name.git
+cd your-repo-name
+2️⃣ Backend Setup (Django)
+cd Backend
+python -m venv env
+source env/bin/activate   # (Linux/Mac)
+env\Scripts\activate      # (Windows)
+
+pip install -r requirements.txt
+
+python manage.py migrate
+python manage.py runserver
+
+
+
+3️⃣ Frontend Setup (React)
+cd FrontEnd
+npm install
+npm run dev
+
+Frontend will run at:
+
+http://localhost:5173/
+4️⃣ ML Model Setup (if separate)
+cd model
+pip install -r requirements.txt
+python app.py
+🔐 Environment Variables
+
+Create a .env file in backend:
+
+SECRET_KEY=your_secret_key
+DEBUG=True
+ALLOWED_HOSTS=*
+📊 Features
+🧠 HPV image-based classification
+📉 Risk level prediction (Low / Medium / High)
+📊 Interactive dashboards with charts
+👩‍⚕️ Patient & lab engineer roles
+📄 Automated report generation
+🔐 Secure authentication (JWT)
+🌙 Dark / Light theme support
+🧪 Model Details
+Architecture: ResNet-based CNN
+Framework: TensorFlow/Keras
+Input: Medical image dataset
+Output: HPV risk classification
+🚀 Deployment
+
+Frontend:
+
+Vercel / Netlify
+
+Backend:
+
+Hugging Face Spaces 
+👨‍💻 Author
+
+Sohaib Maqsood
+Final Year Project – BS Mathematics
+
+📌 Note
+
+This project is developed for academic purposes and research demonstration in healthcare AI systems.
