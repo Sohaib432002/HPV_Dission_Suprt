@@ -82,6 +82,19 @@ const Signup = () => {
           {' '}
           <h1 className="text-3xl font-bold text-white text-center mb-6">Create Account</h1>
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+            <div className="mt-2 p-4 rounded-lg bg-blue-900/20 border border-blue-500/30 text-sm text-gray-300">
+  <h4 className="font-semibold text-white mb-2">Important Instructions</h4>
+
+  <ul className="list-disc list-inside space-y-1">
+    <li>Username must not contain spaces.</li>
+    <li>Use an underscore (_) instead of spaces if needed.</li>
+    <li>Password must include at least one uppercase letter.</li>
+    <li>Password must include at least one number.</li>
+    <li>Password must include at least one special character.</li>
+    <li>Example Username: <strong>sohaib_maqsood</strong></li>
+    <li>Example Password: <strong>Sohaib@123</strong></li>
+  </ul>
+</div>
             <input
               type="text"
               name="username"
