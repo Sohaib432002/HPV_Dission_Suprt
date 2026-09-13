@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import React, { useState } from 'react'
-import { Link } from 'react-router'
+import { Link } from 'react-router-dom'
 import { useTheme } from '../ThemeContext'
 const Login = () => {
   const [form, setForm] = useState({ username: '', password: '' })
@@ -30,8 +30,9 @@ const Login = () => {
         localStorage.setItem('access', result.access)
         localStorage.setItem('refresh', result.refresh)
         window.location.href = '/'
+      } else {
+        alert(result.detail || 'Invalid username or password')
       }
-      setdata(result)
     } catch (error) {
       alert('Problem')
     }

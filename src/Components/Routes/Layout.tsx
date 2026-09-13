@@ -14,7 +14,7 @@ export default function Layout() {
     >
       <Navbar />
 
-      <main className="pt-13">
+      <main className="pt-20">
         <Outlet />
       </main>
     </div>

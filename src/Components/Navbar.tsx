@@ -163,12 +163,22 @@ const Navbar = () => {
           </Link>
 
           {isAuth && (
-            <Link
-              to={role === 'patient' ? '/PatientProfile' : '/LabEngProfile'}
-              onClick={() => setMenuOpen(false)}
-            >
-              Profile
-            </Link>
+            <>
+              <Link
+                to={role === 'patient' ? '/PatientProfile' : '/LabEngProfile'}
+                onClick={() => setMenuOpen(false)}
+              >
+                Profile
+              </Link>
+              {role !== 'patient' && (
+                <Link to="/simulation" onClick={() => setMenuOpen(false)}>
+                  Simulation
+                </Link>
+              )}
+              <Link to="/future-predict" onClick={() => setMenuOpen(false)}>
+                Prediction
+              </Link>
+            </>
           )}
 
           {!isAuth ? (

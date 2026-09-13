@@ -80,8 +80,8 @@ export default function PatientDashboard() {
         const res = await fetchWithRefresh(
           'https://sohaib432002-hpv-dsion-support.hf.space/api/reports/'
         )
-        const data: Report[] = await res.json()
-        setReports(data)
+        const data = await res.json()
+        setReports(Array.isArray(data) ? data : [])
       } catch (e) {
         console.log('Error fetching reports:', e)
       }

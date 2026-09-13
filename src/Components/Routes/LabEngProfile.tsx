@@ -90,12 +90,13 @@ export default function LabEngineerDashboard() {
         const res = await fetchWithRefresh(
           'https://sohaib432002-hpv-dsion-support.hf.space/api/reports/'
         )
-        const data: Report[] = await res.json()
-        setReports(data)
+        const data = await res.json()
+        const reportList = Array.isArray(data) ? data : []
+        setReports(reportList)
 
         const patientMap: { [name: string]: Patient } = {}
-        data.forEach((r) => {
-          const nameFromDoc = r.document.split('/').pop()?.split('_')[2] || 'Unknown'
+        reportList.forEach((r) => {
+          const nameFromDoc = r.document?.split('/').pop()?.split('_')[2] || 'Unknown'
           if (!patientMap[nameFromDoc]) {
             patientMap[nameFromDoc] = { id: r.id, name: nameFromDoc, status: 'Analyzed' }
           }
@@ -110,7 +111,7 @@ export default function LabEngineerDashboard() {
   }, [])
 
   const selectedReports = selectedPatient
-    ? reports.filter((r) => r.document.includes(selectedPatient.name.replace(' ', '_')))
+    ? reports.filter((r) => r.document?.includes(selectedPatient.name.replace(' ', '_')))
     : []
 
   // Day/night theme settings

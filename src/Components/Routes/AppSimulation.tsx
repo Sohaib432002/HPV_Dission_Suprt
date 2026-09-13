@@ -196,7 +196,7 @@ const AppSimulation = () => {
     <div
       className={`min-h-screen relative pt-28 px-6 transition-all duration-500 ${
         theme === 'dark'
-          ? "bg-[url('/path-to-your-lab-bg.png')] bg-cover bg-center"
+          ? "bg-[url('/hpv-pic.jpg')] bg-cover bg-center"
           : 'bg-gradient-to-br from-blue-300 via-purple-600 to-white'
       }`}
     >

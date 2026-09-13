@@ -9,8 +9,8 @@ const Signup = () => {
     email: '',
     password: '',
     role: '',
-    age: 0,
-    gender: 'unknown',
+    age: '',
+    gender: '',
   })
 
   const [loading, setLoading] = useState(false)
@@ -68,7 +68,13 @@ const Signup = () => {
         alert('Account created successfully!')
         navigate('/Login')
       } else {
-        alert(result.detail || 'Signup failed')
+        const messages = Object.entries(result)
+          .map(([key, value]) => {
+            const text = Array.isArray(value) ? value.join(' ') : String(value)
+            return key === 'detail' ? text : `${key}: ${text}`
+          })
+          .join('\n')
+        alert(messages || 'Signup failed')
       }
     } catch (error) {
       console.error(error)

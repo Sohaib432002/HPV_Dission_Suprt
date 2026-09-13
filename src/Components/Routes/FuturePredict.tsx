@@ -108,7 +108,9 @@ const FuturePredict = () => {
         )
         const data = await response.json()
         setMainResult(data)
-        setInfectionRate(data.total_infected_cells / data.total_cells)
+            setInfectionRate(
+              data.total_cells > 0 ? data.total_infected_cells / data.total_cells : 0
+            )
       } catch {
         alert('Prediction failed')
       }

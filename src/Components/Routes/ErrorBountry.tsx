@@ -25,6 +25,14 @@ export default class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBo
   }
 
   render() {
+    if (!this.props.children && !this.state.hasError) {
+      return (
+        <main className="pt-16 p-4 container mx-auto text-center">
+          <h1 className="text-4xl font-bold mb-4 text-red-600">Page not found</h1>
+          <p className="mb-4">The page you are looking for does not exist.</p>
+        </main>
+      )
+    }
     if (this.state.hasError) {
       return (
         <main className="pt-16 p-4 container mx-auto text-center">
