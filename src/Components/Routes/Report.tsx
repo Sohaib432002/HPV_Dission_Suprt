@@ -1,12 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // ============================================================
-//  PDFReport.ts  —  HPV Research Lab  |  v4.0
-//  Dark professional theme · Role-aware display · No overlaps
-//  Clean spacing · Built-in SIR charts · Proper image sizing
+//  HPV Research Lab - PDF report
+//  Same look as the website: light surfaces, deep-green brand,
+//  Inter-style type (Helvetica), soft cards, rounded pills.
 // ============================================================
 
 import { jsPDF } from 'jspdf'
-import html2canvas from 'html2canvas'
 import { jwtDecode } from 'jwt-decode'
 
 // ─────────────────────────────────────────────
@@ -19,6 +18,11 @@ export interface ImageResult {
   stage: string
   risk: string
   hpv: string
+  confidence?: number
+  total_cells?: number
+  infected_cells?: number
+  infection_rate?: number
+  error?: string
 }
 
 export interface ChartDiv {
@@ -30,7 +34,7 @@ export type AccountRole = 'lab_engineer' | 'patient' | 'admin'
 
 export interface PDFReportProps {
   logo_url: string
-  accountRole?: AccountRole // determines what sections to show
+  accountRole?: AccountRole
   patient_name?: string
   patient_id?: string
   age?: number
@@ -61,1342 +65,648 @@ export interface PDFReportProps {
 }
 
 // ─────────────────────────────────────────────
-//  COLOUR PALETTE  — Deep Slate / Purple Pro
+//  DESIGN TOKENS  (mirror src/index.css, light theme)
 // ─────────────────────────────────────────────
 
 type RGB = [number, number, number]
 
 const C = {
-  // Page & structural backgrounds
-  pageBg: [6, 8, 22] as RGB,
-  cardBg: [13, 17, 42] as RGB,
-  cardBgAlt: [18, 24, 56] as RGB,
-  cardBgLight: [24, 32, 72] as RGB,
-  headerBg: [10, 13, 35] as RGB,
-  footerBg: [8, 11, 28] as RGB,
-
-  // Table rows (light for readability)
-  tableRowA: [238, 237, 252] as RGB,
-  tableRowB: [248, 247, 255] as RGB,
-  tableHeader: [30, 24, 80] as RGB,
-
-  // Core accents
-  purple: [138, 92, 255] as RGB,
-  purpleMid: [115, 72, 230] as RGB,
-  purpleDark: [78, 50, 178] as RGB,
-  purpleGlow: [175, 140, 255] as RGB,
-  violet: [180, 110, 255] as RGB,
-
-  // Secondary accents
-  cyan: [56, 196, 220] as RGB,
-  cyanLight: [130, 220, 240] as RGB,
-  teal: [40, 180, 180] as RGB,
-  green: [44, 196, 126] as RGB,
-  greenLight: [110, 220, 165] as RGB,
-  gold: [252, 186, 56] as RGB,
-  goldLight: [255, 215, 120] as RGB,
-  orange: [252, 136, 52] as RGB,
-  red: [232, 70, 70] as RGB,
-  pink: [226, 86, 178] as RGB,
-  pinkLight: [244, 145, 210] as RGB,
-
-  // Risk
-  riskLow: [38, 178, 108] as RGB,
-  riskMed: [236, 158, 28] as RGB,
-  riskHigh: [222, 62, 62] as RGB,
-
-  // Text
   white: [255, 255, 255] as RGB,
-  textPrimary: [220, 224, 245] as RGB,
-  textSecondary: [148, 158, 195] as RGB,
-  textMuted: [100, 112, 158] as RGB,
-  textDark: [28, 22, 68] as RGB,
-  textTableVal: [100, 52, 200] as RGB,
-  textTableDesc: [62, 68, 108] as RGB,
+  surface2: [239, 245, 242] as RGB,
+  ink: [14, 31, 25] as RGB,
+  ink2: [58, 74, 68] as RGB,
+  muted: [105, 122, 115] as RGB,
+  line: [225, 234, 230] as RGB,
 
-  // Borders
-  borderPurple: [60, 48, 148] as RGB,
-  borderLight: [90, 78, 175] as RGB,
-  divider: [38, 34, 100] as RGB,
-  hairline: [195, 190, 228] as RGB,
+  brand: [11, 110, 79] as RGB,
+  brandSoft: [228, 243, 236] as RGB,
+  brandEdge: [190, 224, 208] as RGB,
+  brandDeep: [6, 56, 42] as RGB,
+
+  danger: [217, 45, 58] as RGB,
+  dangerSoft: [253, 236, 238] as RGB,
+  warn: [183, 121, 31] as RGB,
+  warnSoft: [253, 243, 220] as RGB,
+  info: [37, 99, 235] as RGB,
+  infoSoft: [232, 239, 253] as RGB,
+  violet: [109, 79, 214] as RGB,
+  violetSoft: [239, 234, 252] as RGB,
+
+  // chart series (same colours as the website graph)
+  s1: [59, 130, 246] as RGB,
+  s2: [16, 185, 129] as RGB,
+  inf: [239, 68, 68] as RGB,
+  rec: [139, 92, 246] as RGB,
+  can: [100, 116, 139] as RGB,
 }
 
+// A4 page, millimetres
+const PW = 210
+const PH = 297
+const M = 16
+const CW = PW - M * 2
+const TOP = 28
+const BOTTOM = PH - 20
+
 // ─────────────────────────────────────────────
-//  TYPOGRAPHY
+//  SMALL DRAWING HELPERS
 // ─────────────────────────────────────────────
 
-const F = {
-  h1: 24,
-  h2: 14,
-  sectionH: 10.5,
-  tableH: 8.5,
-  tableCell: 8,
-  label: 8.5,
-  value: 9,
-  sm: 7,
-  xs: 6,
-  badge: 6.5,
-  statVal: 13,
-  statLbl: 6,
-  coverLbl: 6.5,
-  coverVal: 8.5,
+const fillC = (p: jsPDF, c: RGB) => p.setFillColor(c[0], c[1], c[2])
+const drawC = (p: jsPDF, c: RGB) => p.setDrawColor(c[0], c[1], c[2])
+const textC = (p: jsPDF, c: RGB) => p.setTextColor(c[0], c[1], c[2])
+
+const font = (p: jsPDF, size: number, weight: 'normal' | 'bold' = 'normal', c: RGB = C.ink) => {
+  p.setFont('helvetica', weight)
+  p.setFontSize(size)
+  textC(p, c)
 }
 
-// ─────────────────────────────────────────────
-//  LAYOUT (mm)
-// ─────────────────────────────────────────────
-
-const L = {
-  mL: 12,
-  mR: 12,
-  headerH: 22,
-  footerH: 13,
-  rowH: 8.5,
-  secGap: 8,
-  secBarH: 9,
-  innerPad: 5,
-  lineH: 5.5,
-}
-
-// ─────────────────────────────────────────────
-//  PRIMITIVES
-// ─────────────────────────────────────────────
-
-const sf = (p: jsPDF, c: RGB) => p.setFillColor(c[0], c[1], c[2])
-const st = (p: jsPDF, c: RGB) => p.setTextColor(c[0], c[1], c[2])
-const sd = (p: jsPDF, c: RGB) => p.setDrawColor(c[0], c[1], c[2])
-
-function rRect(
-  p: jsPDF,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-  fill: RGB,
-  stroke?: RGB,
-  lw = 0.3,
-  r = 0
-): void {
-  sf(p, fill)
-  if (stroke) {
-    sd(p, stroke)
-    p.setLineWidth(lw)
-  }
-  const mode = stroke ? 'FD' : 'F'
-  if (r > 0) {
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      ;(p as any).roundedRect(x, y, w, h, r, r, mode)
-    } catch {
-      p.rect(x, y, w, h, mode)
-    }
+function box(p: jsPDF, x: number, y: number, w: number, h: number, fill: RGB, edge?: RGB, r = 3) {
+  fillC(p, fill)
+  if (edge) {
+    drawC(p, edge)
+    p.setLineWidth(0.25)
+    p.roundedRect(x, y, w, h, r, r, 'FD')
   } else {
-    p.rect(x, y, w, h, mode)
+    p.roundedRect(x, y, w, h, r, r, 'F')
   }
 }
 
-function dLine(p: jsPDF, x1: number, y1: number, x2: number, y2: number, c: RGB, lw = 0.3): void {
-  sd(p, c)
-  p.setLineWidth(lw)
-  p.line(x1, y1, x2, y2)
+function hairline(p: jsPDF, x1: number, y: number, x2: number, c: RGB = C.line) {
+  drawC(p, c)
+  p.setLineWidth(0.2)
+  p.line(x1, y, x2, y)
 }
 
-function loadImg(src: string): Promise<HTMLImageElement> {
-  return new Promise((res, rej) => {
-    const img = new Image()
-    img.crossOrigin = 'anonymous'
-    img.src = src
-    img.onload = () => res(img)
-    img.onerror = () => rej(new Error(`Failed: ${src}`))
-  })
-}
-
-function riskColor(risk: string): RGB {
-  const r = risk.toLowerCase()
-  if (r.includes('high') || r.includes('severe')) return C.riskHigh
-  if (r.includes('med') || r.includes('moderate')) return C.riskMed
-  return C.riskLow
-}
-
-function ensureSpace(
-  p: jsPDF,
-  y: number,
-  needed: number,
-  pH: number,
-  pW: number,
-  drawHdr: (p: jsPDF, pW: number) => void
-): number {
-  if (y + needed > pH - L.footerH - 8) {
-    p.addPage()
-    drawHdr(p, pW)
-    return L.headerH + 8
-  }
-  return y
-}
-
-function truncate(p: jsPDF, text: string, maxW: number): string {
+function trunc(p: jsPDF, text: string, maxW: number): string {
   if (p.getTextWidth(text) <= maxW) return text
   let t = text
-  while (t.length > 1 && p.getTextWidth(t + '\u2026') > maxW) t = t.slice(0, -1)
-  return t + '\u2026'
+  while (t.length > 1 && p.getTextWidth(t + '...') > maxW) t = t.slice(0, -1)
+  return t + '...'
 }
 
-function cardWrap(p: jsPDF, y: number, pW: number, h: number, border: RGB = C.borderPurple): void {
-  rRect(p, L.mL, y, pW - L.mL - L.mR, h, C.cardBg, border, 0.28, 1.5)
+/** Rounded status chip. Returns its width. */
+function pill(p: jsPDF, x: number, y: number, label: string, fg: RGB, bg: RGB, size = 7): number {
+  font(p, size, 'bold', fg)
+  const w = p.getTextWidth(label) + 6
+  fillC(p, bg)
+  p.roundedRect(x, y, w, 5.4, 2.7, 2.7, 'F')
+  p.text(label, x + 3, y + 3.8)
+  return w
 }
 
-// ─────────────────────────────────────────────
-//  PAGE HEADER
-//  Fixed 22 mm tall — date pill sized to not overlap title
-// ─────────────────────────────────────────────
+const num = (n: unknown, digits: number) =>
+  typeof n === 'number' && Number.isFinite(n) ? n.toFixed(digits) : '-'
 
-function pageHeader(p: jsPDF, pW: number): void {
-  rRect(p, 0, 0, pW, L.headerH, C.headerBg)
-  rRect(p, 0, 0, 4, L.headerH, C.purple)
-  rRect(p, 4, 0, 1, L.headerH, C.violet)
+const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n))
 
-  // Title + subtitle  — left zone only, capped at 60% of page width
-  p.setFont('helvetica', 'bold')
-  p.setFontSize(11)
-  st(p, C.white)
-  p.text('HPV Research Lab', 9, 9)
-
-  p.setFont('helvetica', 'normal')
-  p.setFontSize(F.sm)
-  st(p, C.purpleGlow)
-  p.text('Simulation & Analysis Platform  \u00b7  v4.0', 9, 15.5)
-
-  // Date pill — uses a fixed width (38 mm), placed well to the right
-  const dateStr = new Date().toISOString().slice(0, 10)
-  const pillW = 38,
-    pillH = 7
-  const pillX = pW - L.mR - pillW
-  const pillY = (L.headerH - pillH) / 2
-  rRect(p, pillX, pillY, pillW, pillH, C.purpleDark, C.purple, 0.3, 2)
-  p.setFont('helvetica', 'bold')
-  p.setFontSize(F.badge)
-  st(p, C.purpleGlow)
-  p.text(dateStr, pillX + pillW / 2, pillY + 4.8, { align: 'center' })
-
-  dLine(p, 0, L.headerH, pW, L.headerH, C.purple, 0.5)
+function riskTone(risk: string): { fg: RGB; bg: RGB } {
+  const r = (risk || '').toLowerCase()
+  if (r.includes('high') || r.includes('critical') || r.includes('severe')) return { fg: C.danger, bg: C.dangerSoft }
+  if (r.includes('med') || r.includes('moderate')) return { fg: C.warn, bg: C.warnSoft }
+  if (r.includes('low')) return { fg: C.brand, bg: C.brandSoft }
+  return { fg: C.muted, bg: C.surface2 }
 }
 
-// ─────────────────────────────────────────────
-//  PAGE FOOTER
-//  Three distinct zones — pill around page number prevents bleed
-// ─────────────────────────────────────────────
+const riskBucket = (risk: string): 'Low' | 'Medium' | 'High' | 'Other' => {
+  const r = (risk || '').toLowerCase()
+  if (r.includes('high') || r.includes('critical') || r.includes('severe')) return 'High'
+  if (r.includes('med') || r.includes('moderate')) return 'Medium'
+  if (r.includes('low')) return 'Low'
+  return 'Other'
+}
 
-function pageFooter(p: jsPDF, pW: number, pH: number, pageNum: number, total: number): void {
-  const fY = pH - L.footerH
-  const mid = fY + 8
-
-  rRect(p, 0, fY, pW, L.footerH, C.footerBg)
-  dLine(p, 0, fY, pW, fY, C.borderPurple, 0.4)
-
-  // Left
-  p.setFont('helvetica', 'normal')
-  p.setFontSize(F.xs)
-  st(p, C.textMuted)
-  p.text('HPV Research Lab  \u00b7  Confidential', L.mL, mid)
-
-  // Centre
-  st(p, C.purpleGlow)
-  p.text('www.hpvresearchlab.com', pW / 2, mid, { align: 'center' })
-
-  // Right — pill to make it distinct
-  const pgTxt = `Page ${pageNum} / ${total}`
-  p.setFont('helvetica', 'bold')
-  p.setFontSize(F.xs)
-  const pgW = p.getTextWidth(pgTxt) + 6
-  rRect(p, pW - L.mR - pgW, fY + 3, pgW, 7, C.cardBgAlt, C.borderPurple, 0.2, 1.5)
-  st(p, C.cyan)
-  p.text(pgTxt, pW - L.mR - pgW / 2, mid, { align: 'center' })
+const hpvBucket = (hpv: string): 'Detected' | 'Not detected' | 'Unknown' => {
+  const h = (hpv || '').toLowerCase()
+  if (/not|neg|no /.test(h)) return 'Not detected'
+  if (/detect|pos/.test(h)) return 'Detected'
+  return 'Unknown'
 }
 
 // ─────────────────────────────────────────────
-//  SECTION BAR
+//  PAGE FURNITURE
 // ─────────────────────────────────────────────
 
-function sectionBar(
-  p: jsPDF,
-  title: string,
-  y: number,
-  pW: number,
-  accent: RGB = C.purple
-): number {
-  const bW = pW - L.mL - L.mR
-  rRect(p, L.mL, y, bW, L.secBarH, C.cardBgAlt, C.borderPurple, 0.25, 1.5)
-  rRect(p, L.mL, y, 3, L.secBarH, accent, undefined, 0, 1)
-  p.setFont('helvetica', 'bold')
-  p.setFontSize(F.sectionH)
-  st(p, accent)
-  p.text(title.toUpperCase(), L.mL + 7, y + 6.3)
-  return y + L.secBarH + 4
-}
-
-// ─────────────────────────────────────────────
-//  PATIENT INFORMATION
-// ─────────────────────────────────────────────
-
-function drawPatientInfo(p: jsPDF, props: PDFReportProps, y: number, pW: number): number {
-  const { PatientDetails, patient_name, patient_id, age, gender } = props
-  y = sectionBar(p, 'Patient Information', y, pW, C.green)
-
-  const fields: [string, string][] = [
-    ['Full Name', PatientDetails?.Name || patient_name || 'N/A'],
-    ['Patient ID', PatientDetails?.ID || patient_id || 'N/A'],
-    ['Age', String(PatientDetails?.Age || age || 'N/A')],
-    ['Gender', PatientDetails?.Gender || gender || 'N/A'],
-    ['Blood Group', PatientDetails?.BloodGroup || 'N/A'],
-    ['Contact', PatientDetails?.ContactNumber || 'N/A'],
-    ['Sample Date', PatientDetails?.SampleDate || 'N/A'],
-    ['Report Date', PatientDetails?.ReportDate || new Date().toLocaleDateString()],
-    ['Referred By', PatientDetails?.ReferredBy || 'N/A'],
-  ]
-
-  const rowH = 9
-  const rows = Math.ceil(fields.length / 2)
-  const blockH = rows * rowH + L.innerPad * 2
-  cardWrap(p, y, pW, blockH)
-
-  const colW = (pW - L.mL - L.mR) / 2
-  const lbW = 28
-
-  fields.forEach(([lbl, val], i) => {
-    const col = i % 2
-    const row = Math.floor(i / 2)
-    const cx = L.mL + L.innerPad + col * colW
-    const ry = y + L.innerPad + row * rowH + 6
-
-    p.setFont('helvetica', 'bold')
-    p.setFontSize(F.sm)
-    st(p, C.textMuted)
-    p.text(lbl + ':', cx, ry)
-
-    p.setFont('helvetica', 'normal')
-    p.setFontSize(F.value)
-    st(p, C.textPrimary)
-    p.text(truncate(p, val, colW - lbW - L.innerPad - 3), cx + lbW, ry)
-  })
-
-  return y + blockH + L.secGap
-}
-
-// ─────────────────────────────────────────────
-//  LAB ENGINEER BLOCK  (lab / admin only)
-// ─────────────────────────────────────────────
-
-function drawLabEngineerInfo(p: jsPDF, name: string, y: number, pW: number): number {
-  y = sectionBar(p, 'Lab Engineer Details', y, pW, C.cyan)
-
-  const blockH = 22
-  cardWrap(p, y, pW, blockH, C.cyan)
-
-  const bW = pW - L.mL - L.mR
-  const half = bW / 2
-
-  p.setFont('helvetica', 'bold')
-  p.setFontSize(F.sm)
-  st(p, C.textMuted)
-  p.text('Lab Engineer:', L.mL + L.innerPad, y + 10)
-
-  p.setFont('helvetica', 'bold')
-  p.setFontSize(F.value)
-  st(p, C.cyan)
-  p.text(name || 'N/A', L.mL + L.innerPad + 30, y + 10)
-
-  const dateStr = new Date().toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  })
-  p.setFont('helvetica', 'bold')
-  p.setFontSize(F.sm)
-  st(p, C.textMuted)
-  p.text('Generated:', L.mL + half + L.innerPad, y + 10)
-
-  p.setFont('helvetica', 'normal')
-  p.setFontSize(F.value)
-  st(p, C.textPrimary)
-  p.text(dateStr, L.mL + half + L.innerPad + 22, y + 10)
-
-  return y + blockH + L.secGap
-}
-
-// ─────────────────────────────────────────────
-//  STAT BADGES
-// ─────────────────────────────────────────────
-
-function drawStatBadges(
-  p: jsPDF,
-  rate: number,
-  cells: number,
-  infected: number,
-  images: number,
-  y: number,
-  pW: number
-): number {
-  y = sectionBar(p, 'Analysis Overview', y, pW, C.purple)
-
-  const bW = pW - L.mL - L.mR
-  const gap = 3
-  const bBW = (bW - gap * 3) / 4
-  const bH = 24
-
-  const badges = [
-    { lbl: 'Total Cells', val: cells.toLocaleString(), col: C.cyan },
-    { lbl: 'Infected Cells', val: infected.toLocaleString(), col: C.red },
-    { lbl: 'Infection Rate', val: `${rate.toFixed(2)}%`, col: C.orange },
-    { lbl: 'Images Analysed', val: images.toString(), col: C.purple },
-  ]
-
-  badges.forEach((b, i) => {
-    const bX = L.mL + i * (bBW + gap)
-    rRect(p, bX, y, bBW, bH, C.cardBgAlt, b.col, 0.4, 2)
-    rRect(p, bX, y, bBW, 3, b.col, undefined, 0, 2)
-
-    p.setFont('helvetica', 'bold')
-    p.setFontSize(F.statLbl)
-    st(p, b.col)
-    p.text(b.lbl.toUpperCase(), bX + 5, y + 10)
-
-    p.setFont('helvetica', 'bold')
-    p.setFontSize(F.statVal)
-    st(p, C.white)
-    p.text(b.val, bX + bBW / 2, y + 21, { align: 'center' })
-  })
-
-  return y + bH + L.secGap
-}
-
-// ─────────────────────────────────────────────
-//  INFECTION RATE BAR
-// ─────────────────────────────────────────────
-
-function drawInfectionBar(p: jsPDF, rate: number, y: number, pW: number): number {
-  const bW = pW - L.mL - L.mR
-  const barH = 9
-
-  p.setFont('helvetica', 'bold')
-  p.setFontSize(F.label)
-  st(p, C.textPrimary)
-  p.text('Overall Infection Rate', L.mL, y + 5)
-
-  p.setFont('helvetica', 'normal')
-  p.setFontSize(F.sm)
-  st(p, C.textMuted)
-  p.text('Percentage of infected cells in the analysed sample', L.mL, y + 10.5)
-  y += 14
-
-  // Track
-  rRect(p, L.mL, y, bW, barH, C.cardBgAlt, C.borderPurple, 0.25, 3)
-
-  // Fill
-  const fillW = Math.max(5, Math.min((rate / 100) * bW, bW))
-  const fillC: RGB = rate > 60 ? C.riskHigh : rate > 30 ? C.riskMed : C.riskLow
-  rRect(p, L.mL, y, fillW, barH, fillC, undefined, 0, 3)
-
-  // Milestone ticks
-  ;[25, 50, 75].forEach((pct) => {
-    const tx = L.mL + (pct / 100) * bW
-    dLine(p, tx, y, tx, y + barH, C.divider, 0.2)
-    p.setFont('helvetica', 'normal')
-    p.setFontSize(F.xs)
-    st(p, C.textMuted)
-    p.text(`${pct}%`, tx, y + barH + 4.2, { align: 'center' })
-  })
-
-  // Rate label
-  p.setFont('helvetica', 'bold')
-  p.setFontSize(F.sm)
-  st(p, C.white)
-  p.text(`${rate.toFixed(2)}%`, Math.min(L.mL + fillW / 2, pW - L.mR - 10), y + 6.2, {
-    align: 'center',
-  })
-
-  return y + barH + 10 + L.secGap
-}
-
-// ─────────────────────────────────────────────
-//  SUMMARY TABLE
-// ─────────────────────────────────────────────
-
-function drawSummaryTable(p: jsPDF, props: PDFReportProps, y: number, pW: number): number {
-  const {
-    total_cells,
-    total_infected_cells,
-    overall_infection_rate,
-    image_results,
-    S_1_Cal,
-    S_2_Cal,
-    I_Cal,
-    R_Cal,
-    C_Cal,
-    R0_Cal,
-  } = props
-
-  y = sectionBar(p, 'Simulation Summary', y, pW, C.cyan)
-
-  const tX = L.mL
-  const tW = pW - L.mL - L.mR
-  const hH = L.rowH
-  const COL = [tW * 0.32, tW * 0.22, tW * 0.46]
-
-  const rows: [string, string, string, RGB][] = [
-    ['total_cells', total_cells.toLocaleString(), 'Total cells analysed in sample', C.cyan],
-    [
-      'total_infected',
-      total_infected_cells.toLocaleString(),
-      'Confirmed infected cell count',
-      C.red,
-    ],
-    [
-      'infection_rate (%)',
-      overall_infection_rate.toFixed(4),
-      'Overall infection percentage',
-      C.orange,
-    ],
-    ['images_analysed', image_results.length.toString(), 'Slide images processed', C.purple],
-    ['S1 — Susceptible 1', S_1_Cal.toFixed(6), 'Susceptible group 1 compartment', C.green],
-    ['S2 — Susceptible 2', S_2_Cal.toFixed(6), 'Susceptible group 2 compartment', C.greenLight],
-    ['I  — Infected', I_Cal.toFixed(6), 'Infected compartment value', C.red],
-    ['R  — Recovered', R_Cal.toFixed(6), 'Recovered compartment value', C.teal],
-    ['C  — Cancer Prog.', C_Cal.toFixed(6), 'Cancer progression estimate', C.orange],
-    ['R0 — Basic Repro.', R0_Cal.toFixed(6), 'Basic reproduction number (R0)', C.gold],
-  ]
-
-  // Header
-  rRect(p, tX, y - hH + 2, tW, hH, C.tableHeader, C.borderPurple, 0.3)
-  let xP = tX + 4
-  ;['Parameter', 'Value', 'Description'].forEach((h, ci) => {
-    p.setFont('helvetica', 'bold')
-    p.setFontSize(F.tableH)
-    st(p, ci === 0 ? C.greenLight : ci === 1 ? C.goldLight : C.cyanLight)
-    p.text(h, xP, y)
-    xP += COL[ci]
-  })
-  dLine(p, tX, y + 1.5, tX + tW, y + 1.5, C.purple, 0.5)
-  y += hH
-
-  rows.forEach((row, ri) => {
-    const fill: RGB = ri % 2 === 0 ? C.tableRowA : C.tableRowB
-    rRect(p, tX, y - hH + 2, tW, hH, fill)
-    rRect(p, tX, y - hH + 2, 2.5, hH, row[3])
-
-    let cx = tX + 5
-    p.setFont('helvetica', 'bold')
-    p.setFontSize(F.tableCell)
-    st(p, C.textDark)
-    p.text(row[0], cx, y)
-    cx += COL[0]
-
-    p.setFont('helvetica', 'bold')
-    p.setFontSize(F.tableCell)
-    st(p, C.textTableVal)
-    p.text(row[1], cx, y)
-    cx += COL[1]
-
-    p.setFont('helvetica', 'normal')
-    p.setFontSize(F.sm)
-    st(p, C.textTableDesc)
-    p.text(row[2], cx, y)
-
-    dLine(p, tX, y + 2, tX + tW, y + 2, C.hairline, 0.1)
-    y += hH
-  })
-
-  sd(p, C.cyan)
+/** Brand mark: rounded green square with a double helix, like the site's logo tile. */
+function brandMark(p: jsPDF, x: number, y: number, s: number) {
+  fillC(p, C.brand)
+  p.roundedRect(x, y, s, s, s * 0.28, s * 0.28, 'F')
+  drawC(p, C.white)
   p.setLineWidth(0.45)
-  p.rect(tX, y - (rows.length + 1) * hH, tW, (rows.length + 1) * hH)
+  const cx = x + s / 2
+  const pts = (sign: number) =>
+    Array.from({ length: 13 }, (_, i) => {
+      const t = i / 12
+      return [cx + sign * s * 0.2 * Math.sin(t * Math.PI * 2.4), y + s * 0.18 + s * 0.64 * t] as [number, number]
+    })
+  ;[1, -1].forEach((sign) => {
+    const a = pts(sign)
+    for (let i = 0; i < a.length - 1; i++) p.line(a[i][0], a[i][1], a[i + 1][0], a[i + 1][1])
+  })
+  p.setLineWidth(0.3)
+  ;[0.3, 0.5, 0.7].forEach((t) => {
+    const dx = s * 0.2 * Math.sin(t * Math.PI * 2.4)
+    const yy = y + s * 0.18 + s * 0.64 * t
+    p.line(cx - Math.abs(dx), yy, cx + Math.abs(dx), yy)
+  })
+}
 
-  return y + 4 + L.secGap
+function pageHeader(p: jsPDF, first: boolean, typeLabel: string) {
+  brandMark(p, M, 9, 9)
+  font(p, 12, 'bold', C.ink)
+  p.text('HPV', M + 12, 15.4)
+  const hpvW = p.getTextWidth('HPV ')
+  font(p, 12, 'bold', C.brand)
+  p.text('Research Lab', M + 12 + hpvW, 15.4)
+
+  if (first) {
+    font(p, 7, 'bold', C.brand)
+    const w = p.getTextWidth(typeLabel) + 8
+    fillC(p, C.brandSoft)
+    p.roundedRect(PW - M - w, 10.6, w, 6.2, 3.1, 3.1, 'F')
+    p.text(typeLabel, PW - M - w / 2, 14.8, { align: 'center' })
+  } else {
+    font(p, 8, 'normal', C.muted)
+    p.text('HPV Analysis Report', PW - M, 15, { align: 'right' })
+  }
+  hairline(p, M, 22, PW - M)
+}
+
+function pageFooter(p: jsPDF, page: number, total: number) {
+  hairline(p, M, PH - 14, PW - M)
+  font(p, 7.5, 'normal', C.muted)
+  p.text('HPV Research Lab  -  Confidential', M, PH - 9)
+  p.text('Research use only. Not a medical diagnosis.', PW / 2, PH - 9, { align: 'center' })
+  font(p, 7.5, 'bold', C.ink2)
+  p.text(`Page ${page} of ${total}`, PW - M, PH - 9, { align: 'right' })
+}
+
+type Doc = { p: jsPDF; y: number; typeLabel: string }
+
+function ensure(d: Doc, need: number) {
+  if (d.y + need > BOTTOM) {
+    d.p.addPage()
+    pageHeader(d.p, false, d.typeLabel)
+    d.y = TOP
+  }
+}
+
+/** Section heading: green accent bar, bold title, optional muted line below. */
+function section(d: Doc, title: string, desc?: string) {
+  ensure(d, desc ? 22 : 16)
+  const { p } = d
+  fillC(p, C.brand)
+  p.roundedRect(M, d.y - 3.6, 1.4, desc ? 9.6 : 5.2, 0.7, 0.7, 'F')
+  font(p, 12.5, 'bold', C.ink)
+  p.text(title, M + 4, d.y)
+  if (desc) {
+    font(p, 8.5, 'normal', C.muted)
+    p.text(desc, M + 4, d.y + 5)
+    d.y += 12
+  } else {
+    d.y += 8
+  }
 }
 
 // ─────────────────────────────────────────────
-//  SIR COMPARTMENT LIST
+//  CONTENT BLOCKS
 // ─────────────────────────────────────────────
 
-function drawSIRBlock(
-  p: jsPDF,
-  S1: number,
-  S2: number,
-  I: number,
-  R: number,
-  Cv: number,
-  R0: number,
-  y: number,
-  pW: number
-): number {
-  y = sectionBar(p, 'SIR Model Compartments', y, pW, C.orange)
+function drawTitle(d: Doc, name: string, dateText: string) {
+  const { p } = d
+  font(p, 8, 'bold', C.brand)
+  p.text('HPV ANALYSIS REPORT', M, d.y)
+  font(p, 24, 'bold', C.ink)
+  p.text('Your results at a glance', M, d.y + 10)
+  font(p, 9.5, 'normal', C.muted)
+  p.text(`Prepared for ${name}  -  ${dateText}`, M, d.y + 17)
+  d.y += 26
+}
 
-  const comps = [
-    { lbl: 'S1  Susceptible Group 1', val: S1.toFixed(8), col: C.green },
-    { lbl: 'S2  Susceptible Group 2', val: S2.toFixed(8), col: C.greenLight },
-    { lbl: 'I   Infected', val: I.toFixed(8), col: C.red },
-    { lbl: 'R   Recovered', val: R.toFixed(8), col: C.cyan },
-    { lbl: 'C   Cancer Progression', val: Cv.toFixed(8), col: C.orange },
-    { lbl: 'R0  Basic Repro. Number', val: R0.toFixed(8), col: C.gold },
+function drawHero(d: Doc, rate: number, infected: number, total: number, pictures: number) {
+  const { p } = d
+  const h = 46
+  const tone = rate > 60 ? { fg: C.danger, bg: C.dangerSoft, t: 'High level' } : rate > 30 ? { fg: C.warn, bg: C.warnSoft, t: 'Moderate level' } : { fg: C.brand, bg: C.white, t: 'Low level' }
+
+  box(p, M, d.y, CW, h, C.brandSoft, C.brandEdge, 4)
+  font(p, 7.5, 'bold', C.ink2)
+  p.text('OVERALL INFECTION RATE', M + 8, d.y + 10)
+  font(p, 32, 'bold', tone.fg)
+  p.text(`${num(rate, 2)}%`, M + 8, d.y + 26)
+  pill(p, M + 8, d.y + 29.5, tone.t, tone.fg, tone.bg)
+
+  const rx = M + CW / 2 + 4
+  font(p, 11, 'bold', C.ink)
+  const line = p.splitTextToSize(`${infected.toLocaleString()} of ${total.toLocaleString()} counted cells show signs of HPV.`, CW / 2 - 14)
+  p.text(line, rx, d.y + 14)
+  font(p, 8.5, 'normal', C.ink2)
+  p.text(`Based on ${pictures} picture${pictures === 1 ? '' : 's'} checked by the AI.`, rx, d.y + 14 + line.length * 5 + 2)
+
+  const barX = M + 8
+  const barW = CW - 16
+  fillC(p, C.white)
+  p.roundedRect(barX, d.y + h - 9, barW, 3, 1.5, 1.5, 'F')
+  const fillW = (barW * clamp(rate, 0, 100)) / 100
+  if (fillW > 0.5) {
+    fillC(p, tone.fg)
+    p.roundedRect(barX, d.y + h - 9, Math.max(fillW, 3), 3, 1.5, 1.5, 'F')
+  }
+  d.y += h + 6
+}
+
+function drawStatTiles(d: Doc, tiles: { label: string; value: string; color: RGB }[]) {
+  const { p } = d
+  const gap = 4
+  const w = (CW - gap * (tiles.length - 1)) / tiles.length
+  tiles.forEach((t, i) => {
+    const x = M + i * (w + gap)
+    box(p, x, d.y, w, 22, C.white, C.line, 3)
+    font(p, 7.5, 'normal', C.muted)
+    p.text(t.label, x + 6, d.y + 8)
+    font(p, 16, 'bold', t.color)
+    p.text(t.value, x + 6, d.y + 17.5)
+  })
+  d.y += 28
+}
+
+function drawPatientInfo(d: Doc, props: PDFReportProps, isLab: boolean, labName: string) {
+  const { p } = d
+  const { PatientDetails, patient_name, patient_id, age, gender } = props
+  const na = 'Not provided'
+  const fields: [string, string][] = [
+    ['Full name', PatientDetails?.Name || patient_name || na],
+    ['Patient ID', PatientDetails?.ID || patient_id || na],
+    ['Age', String(PatientDetails?.Age || age || na)],
+    ['Gender', PatientDetails?.Gender || gender || na],
+    ['Blood group', PatientDetails?.BloodGroup || na],
+    ['Contact', PatientDetails?.ContactNumber || na],
+    ['Sample date', PatientDetails?.SampleDate || na],
+    ['Report date', PatientDetails?.ReportDate || new Date().toLocaleDateString('en-GB')],
+    isLab ? ['Lab engineer', labName || na] : ['Referred by', PatientDetails?.ReferredBy || na],
   ]
 
-  const rowH = 8.5
-  const blockH = comps.length * rowH + L.innerPad * 2 + 7
-  cardWrap(p, y, pW, blockH, C.orange)
-
-  p.setFont('helvetica', 'italic')
-  p.setFontSize(F.sm)
-  st(p, C.textMuted)
-  p.text('Computed compartment values from the SIR epidemiological model', L.mL + L.innerPad, y + 5)
-
-  const valX = L.mL + L.innerPad + 72
-
-  comps.forEach((c, i) => {
-    const lY = y + L.innerPad + 7 + i * rowH
-
-    p.setFont('helvetica', 'bold')
-    p.setFontSize(F.label)
-    st(p, C.textSecondary)
-    p.text(c.lbl, L.mL + L.innerPad, lY)
-
-    st(p, C.textMuted)
-    p.text('=', valX - 5, lY)
-
-    p.setFont('helvetica', 'bold')
-    p.setFontSize(F.value)
-    st(p, c.col)
-    p.text(c.val, valX, lY)
-
-    if (i < comps.length - 1) dLine(p, L.mL + 6, lY + 2.5, pW - L.mR - 6, lY + 2.5, C.divider, 0.12)
-  })
-
-  return y + blockH + L.secGap
-}
-
-// ─────────────────────────────────────────────
-//  SIR BAR CHART  (built-in, no html2canvas)
-// ─────────────────────────────────────────────
-
-function drawSIRBarChart(
-  p: jsPDF,
-  S1: number,
-  S2: number,
-  I: number,
-  R: number,
-  Cv: number,
-  R0: number,
-  y: number,
-  pW: number
-): number {
-  y = sectionBar(p, 'SIR Compartment Chart', y, pW, C.purple)
-
-  const bX = L.mL
-  const bW = pW - L.mL - L.mR
-  const axisL = 20
-  const axisB = 11
-  const plotW = bW - axisL - 6
-  const plotH = 44
-  const cardH = plotH + axisB + 14
-
-  cardWrap(p, y, pW, cardH, C.purple)
-
-  const bars = [
-    { lbl: 'S1', val: S1, col: C.green },
-    { lbl: 'S2', val: S2, col: C.greenLight },
-    { lbl: 'I', val: I, col: C.red },
-    { lbl: 'R', val: R, col: C.cyan },
-    { lbl: 'C', val: Cv, col: C.orange },
-    { lbl: 'R0', val: R0, col: C.gold },
-  ]
-
-  const absVals = bars.map((b) => Math.abs(b.val))
-  const maxVal = Math.max(...absVals, 1e-12)
-  const originX = bX + axisL
-  const originY = y + 8 + plotH
-  const barSlot = plotW / bars.length
-  const barW = barSlot * 0.52
-  const gap = barSlot * 0.24
-
-  // Grid lines
-  for (let g = 1; g <= 4; g++) {
-    const gY = originY - (g / 4) * plotH
-    dLine(p, originX, gY, originX + plotW, gY, C.divider, 0.15)
-    const tv = (g / 4) * maxVal
-    const ts = tv < 0.0001 ? tv.toExponential(1) : tv.toFixed(3)
-    p.setFont('helvetica', 'normal')
-    p.setFontSize(4.5)
-    st(p, C.textMuted)
-    p.text(ts, originX - 1, gY + 1.2, { align: 'right' })
-  }
-
-  dLine(p, originX, originY, originX + plotW, originY, C.borderLight, 0.35)
-  dLine(p, originX, y + 8, originX, originY, C.borderLight, 0.35)
-
-  bars.forEach((b, i) => {
-    const barH = Math.max(1, (Math.abs(b.val) / maxVal) * plotH)
-    const barX = originX + i * barSlot + gap
-    const barTop = originY - barH
-
-    rRect(p, barX, barTop, barW, barH, b.col, undefined, 0, 1)
-
-    p.setFont('helvetica', 'bold')
-    p.setFontSize(F.badge)
-    st(p, b.col)
-    p.text(b.lbl, barX + barW / 2, originY + 5.5, { align: 'center' })
-
-    const vs = Math.abs(b.val) < 0.0001 ? b.val.toExponential(1) : b.val.toFixed(3)
-    p.setFont('helvetica', 'normal')
-    p.setFontSize(4)
-    st(p, C.textMuted)
-    p.text(vs, barX + barW / 2, barTop - 1.5, { align: 'center' })
-  })
-
-  p.setFont('helvetica', 'italic')
-  p.setFontSize(F.xs)
-  st(p, C.textMuted)
-  p.text('Value', originX - 14, y + 8 + plotH / 2, { angle: 90 } as any)
-
-  return y + cardH + L.secGap
-}
-
-// ─────────────────────────────────────────────
-//  INFECTION DONUT CHART
-// ─────────────────────────────────────────────
-
-function drawInfectionPieChart(
-  p: jsPDF,
-  total: number,
-  infected: number,
-  y: number,
-  pW: number
-): number {
-  y = sectionBar(p, 'Cell Infection Breakdown', y, pW, C.pink)
-
-  const cardH = 56
-  cardWrap(p, y, pW, cardH, C.pink)
-
-  const cx = L.mL + (pW - L.mL - L.mR) * 0.28
-  const cy = y + 10 + 22
-  const r = 19
-  const infPct = total > 0 ? infected / total : 0
-  const clean = Math.max(0, total - infected)
-
-  // Healthy base circle
-  sf(p, C.riskLow)
-  sd(p, C.riskLow)
-  p.setLineWidth(0)
-  p.circle(cx, cy, r, 'F')
-
-  // Infected sector via polygon fan
-  if (infPct > 0 && infPct <= 1) {
-    const steps = Math.max(3, Math.round(infPct * 72))
-    const startA = -Math.PI / 2
-    const endA = startA + infPct * 2 * Math.PI
-    const pts: number[] = [cx, cy]
-    for (let s = 0; s <= steps; s++) {
-      const a = startA + (s / steps) * (endA - startA)
-      pts.push(cx + r * Math.cos(a), cy + r * Math.sin(a))
-    }
-    pts.push(cx, cy)
-    try {
-      sf(p, C.riskHigh)
-      const ops = pts.reduce((acc, v, idx) => {
-        if (idx % 2 === 0) {
-          acc += idx === 0 ? `${v} ` : ` ${v} `
-        } else {
-          acc += `${v} ${idx === 1 ? 'm' : 'l'} `
-        }
-        return acc
-      }, '')
-      ;(p as any).internal.write(ops + 'f')
-    } catch {
-      /* silent */
-    }
-  }
-
-  // Donut hole
-  sf(p, C.cardBg)
-  sd(p, C.cardBg)
-  p.setLineWidth(0)
-  p.circle(cx, cy, r * 0.54, 'F')
-
-  // Centre label
-  p.setFont('helvetica', 'bold')
-  p.setFontSize(8)
-  st(p, C.white)
-  p.text(`${(infPct * 100).toFixed(1)}%`, cx, cy + 3, { align: 'center' })
-  p.setFont('helvetica', 'normal')
-  p.setFontSize(5)
-  st(p, C.textMuted)
-  p.text('infected', cx, cy + 7.5, { align: 'center' })
-
-  // Legend
-  const legX = cx + r + 14
-  const legY = cy - 18
-  ;[
-    { lbl: 'Infected', cnt: infected, col: C.riskHigh },
-    { lbl: 'Healthy', cnt: clean, col: C.riskLow },
-    { lbl: 'Total', cnt: total, col: C.purple },
-  ].forEach((item, i) => {
-    const iy = legY + i * 13
-    rRect(p, legX, iy, 7, 5.5, item.col, undefined, 0, 1)
-    p.setFont('helvetica', 'bold')
-    p.setFontSize(F.sm)
-    st(p, item.col)
-    p.text(item.lbl, legX + 10, iy + 4.5)
-    p.setFont('helvetica', 'normal')
-    p.setFontSize(F.sm)
-    st(p, C.textPrimary)
-    p.text(item.cnt.toLocaleString(), legX + 10 + p.getTextWidth(item.lbl) + 3, iy + 4.5)
-  })
-
-  return y + cardH + L.secGap
-}
-
-// ─────────────────────────────────────────────
-//  RISK DISTRIBUTION BARS
-// ─────────────────────────────────────────────
-
-function drawRiskDistribution(p: jsPDF, results: ImageResult[], y: number, pW: number): number {
-  if (results.length === 0) return y
-  y = sectionBar(p, 'Risk Distribution', y, pW, C.orange)
-
-  const counts = { low: 0, med: 0, high: 0 }
-  results.forEach((r) => {
-    const rv = r.risk.toLowerCase()
-    if (rv.includes('high') || rv.includes('severe')) counts.high++
-    else if (rv.includes('med') || rv.includes('mod')) counts.med++
-    else counts.low++
-  })
-
-  const total = results.length
-  const cardH = 46
-  cardWrap(p, y, pW, cardH, C.orange)
-
-  const chartX = L.mL + L.innerPad
-  const chartY = y + 8
-  const maxBarW = pW - L.mL - L.mR - L.innerPad * 2 - 55
-  const barH = 8
-  const barGap = 5
-
-  ;[
-    { lbl: 'Low Risk', cnt: counts.low, col: C.riskLow },
-    { lbl: 'Medium Risk', cnt: counts.med, col: C.riskMed },
-    { lbl: 'High Risk', cnt: counts.high, col: C.riskHigh },
-  ].forEach((b, i) => {
-    const bY = chartY + i * (barH + barGap)
-    const fill = Math.max(2, (b.cnt / Math.max(total, 1)) * maxBarW)
-    const pct = total > 0 ? ((b.cnt / total) * 100).toFixed(0) : '0'
-
-    rRect(p, chartX + 38, bY, maxBarW, barH, C.cardBgLight, C.divider, 0.15, 2)
-    rRect(p, chartX + 38, bY, fill, barH, b.col, undefined, 0, 2)
-
-    p.setFont('helvetica', 'bold')
-    p.setFontSize(F.sm)
-    st(p, b.col)
-    p.text(b.lbl, chartX, bY + 6)
-
-    p.setFont('helvetica', 'normal')
-    p.setFontSize(F.xs)
-    st(p, C.textSecondary)
-    p.text(`${b.cnt}  (${pct}%)`, chartX + 38 + maxBarW + 3, bY + 6)
-  })
-
-  return y + cardH + L.secGap
-}
-
-// ─────────────────────────────────────────────
-//  HPV STATUS CARD
-// ─────────────────────────────────────────────
-
-function drawHPVStatusCard(p: jsPDF, results: ImageResult[], y: number, pW: number): number {
-  if (results.length === 0) return y
-  y = sectionBar(p, 'HPV Status Summary', y, pW, C.violet)
-
-  const positive = results.filter((r) => (r.hpv || '').toLowerCase().includes('pos')).length
-  const negative = results.length - positive
-  const posPct = results.length > 0 ? ((positive / results.length) * 100).toFixed(1) : '0'
-
-  const cardH = 28
-  cardWrap(p, y, pW, cardH, C.violet)
-
-  const bW = pW - L.mL - L.mR
-  const col = bW / 3
-
-  ;[
-    { lbl: 'HPV Positive', val: positive.toString(), col: C.riskHigh },
-    { lbl: 'HPV Negative', val: negative.toString(), col: C.riskLow },
-    { lbl: 'Positive Rate', val: `${posPct}%`, col: C.violet },
-  ].forEach((s, i) => {
-    const sx = L.mL + i * col + col / 2
-    p.setFont('helvetica', 'bold')
-    p.setFontSize(F.statLbl)
-    st(p, s.col)
-    p.text(s.lbl.toUpperCase(), sx, y + 10, { align: 'center' })
-    p.setFont('helvetica', 'bold')
-    p.setFontSize(12)
-    st(p, C.white)
-    p.text(s.val, sx, y + 22, { align: 'center' })
-  })
-
-  return y + cardH + L.secGap
-}
-
-// ─────────────────────────────────────────────
-//  EXTERNAL CHARTS  (html2canvas)
-// ─────────────────────────────────────────────
-
-async function drawExternalCharts(
-  p: jsPDF,
-  chartDivs: ChartDiv[],
-  y: number,
-  pW: number,
-  pH: number
-): Promise<number> {
-  if (chartDivs.length === 0) return y
-  y = sectionBar(p, 'Simulation Charts', y, pW, C.purpleGlow)
-
-  for (const chart of chartDivs) {
-    if (!chart.element) continue
-    try {
-      const canvas = await html2canvas(chart.element, {
-        scale: 2.5,
-        useCORS: true,
-        backgroundColor: '#0d1132',
-      })
-      const imgData = canvas.toDataURL('image/png')
-      const imgProps = p.getImageProperties(imgData)
-      const imgW = pW - L.mL - L.mR
-      const imgH = Math.min((imgProps.height * imgW) / imgProps.width, 100)
-
-      y = ensureSpace(p, y, imgH + 16, pH, pW, pageHeader)
-
-      rRect(p, L.mL, y, pW - L.mL - L.mR, 7, C.cardBgAlt, C.purpleGlow, 0.3, 1.5)
-      p.setFont('helvetica', 'bold')
-      p.setFontSize(F.sectionH)
-      st(p, C.purpleGlow)
-      p.text(chart.title, L.mL + 5, y + 5.2)
-      y += 9
-
-      rRect(p, L.mL, y, imgW, imgH, C.cardBg, C.purple, 0.4, 1.5)
-      p.addImage(imgData, 'PNG', L.mL, y, imgW, imgH)
-      y += imgH + L.secGap
-    } catch {
-      console.warn(`Chart render failed: ${chart.title}`)
-    }
-  }
-  return y
-}
-
-// ─────────────────────────────────────────────
-//  IMAGE RESULTS TABLE
-//  Thumbnails: aspect-ratio-preserving within 26×22 mm
-// ─────────────────────────────────────────────
-
-async function drawImageTable(
-  p: jsPDF,
-  results: ImageResult[],
-  y: number,
-  pW: number,
-  pH: number
-): Promise<number> {
-  const hdrY = y
-  y = sectionBar(p, 'Analysed Image Results', y, pW, C.pink)
-
-  if (results.length === 0) {
-    p.setFont('helvetica', 'italic')
-    p.setFontSize(F.label)
-    st(p, C.textMuted)
-    p.text('No image results available.', L.mL + 4, y + 5)
-    return y + 14
-  }
-
-  const tX = L.mL
-  const tW = pW - L.mL - L.mR
-  const THUMB = { w: 26, h: 22 }
-  const ROW_H = THUMB.h + 6
-
-  // Column definitions
-  const COLS = [
-    { w: 7 }, // #
-    { w: THUMB.w + 6 }, // image
-    { w: 36 }, // result
-    { w: 34 }, // stage
-    { w: 28 }, // risk
-    { w: 0 }, // hpv — fills remainder
-  ]
-  const usedW = COLS.slice(0, -1).reduce((s, c) => s + c.w, 0)
-  COLS[COLS.length - 1].w = tW - usedW
-
-  const hdrColors: RGB[] = [C.textMuted, C.gold, C.cyan, C.green, C.orange, C.pink]
-  const hdrLabels = ['#', 'Image', 'Result', 'Stage', 'Risk', 'HPV Status']
-
-  // Header row
-  rRect(p, tX, y - L.rowH + 2, tW, L.rowH, C.tableHeader, C.borderPurple, 0.3)
-  let hx = tX + 3
-  hdrLabels.forEach((lbl, ci) => {
-    p.setFont('helvetica', 'bold')
-    p.setFontSize(F.tableH)
-    st(p, hdrColors[ci])
-    p.text(lbl, hx, y)
-    hx += COLS[ci].w
-  })
-  dLine(p, tX, y + L.rowH - 5, tX + tW, y + L.rowH - 5, C.purple, 0.4)
-  y += L.rowH + 1
-
-  for (let i = 0; i < results.length; i++) {
-    const r = results[i]
-    y = ensureSpace(p, y, ROW_H + 2, pH, pW, pageHeader)
-
-    const fill: RGB = i % 2 === 0 ? C.tableRowA : C.tableRowB
-    rRect(p, tX, y, tW, ROW_H, fill)
-
-    let cx = tX + 3
-
-    // # index
-    p.setFont('helvetica', 'bold')
-    p.setFontSize(F.sm)
-    st(p, C.textMuted)
-    p.text(`${i + 1}`, cx + 1, y + ROW_H / 2 + 2)
-    cx += COLS[0].w
-
-    // Thumbnail
-    const thumbX = cx + 1
-    const thumbY = y + (ROW_H - THUMB.h) / 2
-    try {
-      const imgEl = await loadImg(`http://127.0.0.1:8000/media/${r.image}`)
-      const aspect = imgEl.naturalWidth / Math.max(imgEl.naturalHeight, 1)
-      let tw = THUMB.w,
-        th = THUMB.h
-      if (aspect > THUMB.w / THUMB.h) {
-        th = tw / aspect
-      } else {
-        tw = th * aspect
-      }
-      const ox = (THUMB.w - tw) / 2
-      const oy = (THUMB.h - th) / 2
-      rRect(p, thumbX, thumbY, THUMB.w, THUMB.h, C.cardBgAlt, C.borderPurple, 0.2, 1)
-      p.addImage(imgEl, 'PNG', thumbX + ox, thumbY + oy, tw, th)
-    } catch {
-      rRect(p, thumbX, thumbY, THUMB.w, THUMB.h, C.cardBgAlt, C.borderPurple, 0.2, 1)
-      p.setFont('helvetica', 'italic')
-      p.setFontSize(F.xs)
-      st(p, C.textMuted)
-      p.text('No Image', thumbX + THUMB.w / 2, thumbY + THUMB.h / 2 + 1, { align: 'center' })
-    }
-    cx += COLS[1].w
-
-    const midY = y + ROW_H / 2 + 2
-
-    // Result
-    p.setFont('helvetica', 'bold')
-    p.setFontSize(F.tableCell)
-    st(p, C.textDark)
-    p.text(truncate(p, r.result || 'N/A', COLS[2].w - 4), cx, midY)
-    cx += COLS[2].w
-
-    // Stage
-    p.setFont('helvetica', 'normal')
-    p.setFontSize(F.tableCell)
-    st(p, [48, 85, 58] as RGB)
-    p.text(truncate(p, r.stage || 'N/A', COLS[3].w - 4), cx, midY)
-    cx += COLS[3].w
-
-    // Risk badge
-    const rc = riskColor(r.risk || '')
-    const bW2 = COLS[4].w - 6
-    const bH2 = 7
-    const bX2 = cx + 1
-    const bY2 = y + (ROW_H - bH2) / 2
-    rRect(p, bX2, bY2, bW2, bH2, rc, undefined, 0, 2)
-    p.setFont('helvetica', 'bold')
-    p.setFontSize(F.badge)
-    st(p, C.white)
-    p.text((r.risk || 'N/A').toUpperCase().slice(0, 8), bX2 + bW2 / 2, bY2 + 5, { align: 'center' })
-    cx += COLS[4].w
-
-    // HPV
-    p.setFont('helvetica', 'bold')
-    p.setFontSize(F.tableCell)
-    const hpvPos = (r.hpv || '').toLowerCase().includes('pos')
-    st(p, hpvPos ? C.riskHigh : C.riskLow)
-    p.text(r.hpv || 'N/A', cx, midY)
-
-    dLine(p, tX, y + ROW_H, tX + tW, y + ROW_H, C.hairline, 0.12)
-    y += ROW_H + 1
-  }
-
-  // Outer table border
-  sd(p, C.pink)
-  p.setLineWidth(0.4)
-  p.rect(tX, hdrY + L.secBarH + 4, tW, y - hdrY - L.secBarH - 4)
-
-  return y + L.secGap
-}
-
-// ─────────────────────────────────────────────
-//  SIGN-OFF  (lab / admin only)
-// ─────────────────────────────────────────────
-
-function drawSignOff(p: jsPDF, name: string, y: number, pW: number, pH: number): number {
-  y = ensureSpace(p, y, 52, pH, pW, pageHeader)
-  y = sectionBar(p, 'Lab Engineer Sign-Off', y, pW, C.pink)
-
-  const bW = pW - L.mL - L.mR
-  const bH = 42
-  cardWrap(p, y, pW, bH, C.pink)
-
-  // Name
-  p.setFont('helvetica', 'bold')
-  p.setFontSize(F.sm)
-  st(p, C.textMuted)
-  p.text('Lab Engineer:', L.mL + L.innerPad, y + 12)
-
-  p.setFont('helvetica', 'bold')
-  p.setFontSize(F.sectionH)
-  st(p, C.pink)
-  p.text(name || 'N/A', L.mL + L.innerPad + 30, y + 12)
-
-  // Role pill
-  const roleLabel = 'AUTHORISED SIGNATORY'
-  const rpW = p.getTextWidth(roleLabel) + 6
-  rRect(p, L.mL + L.innerPad, y + 16, rpW, 6.5, C.purpleDark, C.purpleGlow, 0.2, 1.5)
-  p.setFont('helvetica', 'bold')
-  p.setFontSize(F.xs)
-  st(p, C.purpleGlow)
-  p.text(roleLabel, L.mL + L.innerPad + rpW / 2, y + 21, { align: 'center' })
-
-  // Signature line
-  dLine(p, L.mL + L.innerPad, y + 30, L.mL + L.innerPad + 80, y + 30, C.pink, 0.4)
-  p.setFont('helvetica', 'italic')
-  p.setFontSize(F.xs)
-  st(p, C.textMuted)
-  p.text('Authorised Signature', L.mL + L.innerPad, y + 35)
-
-  // Date
-  const signDate = new Date().toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  })
-  p.setFont('helvetica', 'bold')
-  p.setFontSize(F.label)
-  st(p, C.cyan)
-  p.text(`Date: ${signDate}`, L.mL + bW - L.innerPad, y + 30, { align: 'right' })
-
-  // Verified badge
-  const vX = L.mL + bW - 36,
-    vY = y + 6
-  rRect(p, vX, vY, 30, 14, C.purpleDark, C.purple, 0.3, 2)
-  p.setFont('helvetica', 'bold')
-  p.setFontSize(6.5)
-  st(p, C.white)
-  p.text('VERIFIED', vX + 15, vY + 6, { align: 'center' })
-  p.setFont('helvetica', 'normal')
-  p.setFontSize(F.xs)
-  st(p, C.purpleGlow)
-  p.text('HPV Research Lab', vX + 15, vY + 11, { align: 'center' })
-
-  return y + bH + L.secGap
-}
-
-// ─────────────────────────────────────────────
-//  DISCLAIMER
-// ─────────────────────────────────────────────
-
-function drawDisclaimer(p: jsPDF, y: number, pW: number, pH: number): number {
-  y = ensureSpace(p, y, 38, pH, pW, pageHeader)
-  y = sectionBar(p, 'Disclaimer & Notes', y, pW, C.gold)
-
-  const notes = [
-    'This report is generated by the HPV Research Lab Simulation & Analysis Platform.',
-    'All values are the result of mathematical simulation (SIR compartmental model).',
-    'This document is NOT a substitute for clinical diagnosis or professional medical advice.',
-    'Results must be reviewed and validated by a qualified medical professional.',
-    '\u00a9 HPV Research Lab \u2014 Confidential and Proprietary. Unauthorised distribution is prohibited.',
-  ]
-
-  const bH = notes.length * L.lineH + L.innerPad * 2 + 3
-  cardWrap(p, y, pW, bH, C.gold)
-
-  notes.forEach((line, i) => {
-    const hi = i === 0 || i === notes.length - 1
-    p.setFont('helvetica', hi ? 'bold' : 'normal')
-    p.setFontSize(F.sm)
-    st(p, hi ? C.gold : C.textSecondary)
-    p.text(`\u2022  ${line}`, L.mL + L.innerPad, y + L.innerPad + 4 + i * L.lineH)
-  })
-
-  return y + bH + L.secGap
-}
-
-// ─────────────────────────────────────────────
-//  LOGO PLACEMENT  (inside header zone)
-// ─────────────────────────────────────────────
-
-async function drawLogo(p: jsPDF, url: string, pW: number): Promise<void> {
-  if (!url) return
-  try {
-    const img = await loadImg(url)
-    // Right side of header — size capped at 22×10 to stay within 22 mm header
-    p.addImage(img, 'PNG', pW - L.mR - 22, 6, 18, 9)
-  } catch {
-    /* silent */
-  }
-}
-
-// ─────────────────────────────────────────────
-//  COVER PAGE
-// ─────────────────────────────────────────────
-
-async function drawCover(
-  p: jsPDF,
-  props: PDFReportProps,
-  pW: number,
-  pH: number,
-  labName: string,
-  role: AccountRole
-): Promise<void> {
-  const { logo_url, PatientDetails, patient_name, patient_id, overall_infection_rate } = props
-
-  // Background
-  rRect(p, 0, 0, pW, pH, C.pageBg)
-
-  // Dot grid
-  sd(p, [18, 22, 58] as RGB)
-  p.setLineWidth(0.08)
-  for (let gx = 0; gx <= pW; gx += 10) p.line(gx, 0, gx, pH)
-  for (let gy = 0; gy <= pH; gy += 10) p.line(0, gy, pW, gy)
-
-  // Top + bottom bands
-  rRect(p, 0, 0, pW, 5, C.purple)
-  rRect(p, 0, 5, pW, 1.5, C.violet)
-  rRect(p, 0, 6.5, pW, 0.8, C.cyan)
-  rRect(p, 0, pH - 4.5, pW, 3, C.cyan)
-  rRect(p, 0, pH - 1.5, pW, 1.5, C.purple)
-
-  // Card
-  const cX = 14,
-    cY = 14,
-    cW = pW - 28,
-    cH = pH - 28
-  rRect(p, cX, cY, cW, cH, C.cardBg, C.purple, 0.5, 3)
-  rRect(p, cX, cY, cW, 5, C.purple, undefined, 0, 3)
-
-  // Logo
-  if (logo_url) {
-    try {
-      const img = await loadImg(logo_url)
-      p.addImage(img, 'PNG', cX + cW - 38, cY + 8, 28, 13)
-    // eslint-disable-next-line @typescript-eslint/no-unused-expressions
-    } catch {console.log('error')}
-  }
-
-  // Lab title
-  p.setFont('helvetica', 'bold')
-  p.setFontSize(F.h1)
-  st(p, C.white)
-  p.text('HPV Research Lab', cX + cW / 2, cY + 28, { align: 'center' })
-
-  p.setFont('helvetica', 'normal')
-  p.setFontSize(F.h2)
-  st(p, C.purpleGlow)
-  p.text('Simulation & Analysis Platform', cX + cW / 2, cY + 37, { align: 'center' })
-
-  dLine(p, cX + 18, cY + 42, cX + cW - 18, cY + 42, C.purple, 0.45)
-
-  // Report type pill
-  const pillW = 78,
-    pillH = 9
-  const pillX = cX + (cW - pillW) / 2
-  const pillY = cY + 46
-  rRect(p, pillX, pillY, pillW, pillH, C.purpleDark, C.purple, 0.3, 3)
-  p.setFont('helvetica', 'bold')
-  p.setFontSize(F.badge)
-  st(p, C.white)
-  p.text('PATIENT DIAGNOSTIC REPORT', pillX + pillW / 2, pillY + 6.2, { align: 'center' })
-
-  // Patient fields (always shown on cover)
-  const infoY = cY + 62
-  const patFields: [string, string][] = [
-    ['Patient Name', PatientDetails?.Name || patient_name || 'N/A'],
-    ['Patient ID', PatientDetails?.ID || patient_id || 'N/A'],
-    ['Gender', PatientDetails?.Gender || 'N/A'],
-    ['Age', String(PatientDetails?.Age || 'N/A')],
-    ['Blood Group', PatientDetails?.BloodGroup || 'N/A'],
-    ['Sample Date', PatientDetails?.SampleDate || 'N/A'],
-  ]
-
-  patFields.forEach(([lbl, val], i) => {
+  section(d, 'Patient information')
+  const rows = Math.ceil(fields.length / 2)
+  const h = rows * 13 + 8
+  ensure(d, h + 4)
+  box(p, M, d.y, CW, h, C.white, C.line, 3)
+  fields.forEach(([label, value], i) => {
     const col = i % 2
     const row = Math.floor(i / 2)
-    const ix = cX + 14 + col * (cW / 2)
-    const iy = infoY + row * 14
-
-    p.setFont('helvetica', 'bold')
-    p.setFontSize(F.coverLbl)
-    st(p, C.textMuted)
-    p.text(lbl.toUpperCase(), ix, iy)
-
-    p.setFont('helvetica', 'normal')
-    p.setFontSize(F.coverVal)
-    st(p, C.white)
-    p.text(val, ix, iy + 6.5)
+    const x = M + 8 + col * (CW / 2)
+    const y = d.y + 9 + row * 13
+    font(p, 7.5, 'normal', C.muted)
+    p.text(label.toUpperCase(), x, y)
+    font(p, 10, 'bold', value === na ? C.muted : C.ink)
+    p.text(trunc(p, value, CW / 2 - 14), x, y + 5.2)
   })
+  d.y += h + 8
+}
 
-  // Separator line
-  const engBlockY = infoY + Math.ceil(patFields.length / 2) * 14 + 5
-  dLine(p, cX + 14, engBlockY, cX + cW - 14, engBlockY, C.borderPurple, 0.25)
+function drawHowToRead(d: Doc) {
+  const { p } = d
+  const items: [string, string][] = [
+    ['Infection rate', 'out of all the cells counted, the share that show signs of HPV.'],
+    ['Risk', 'Low, Medium or High, based on what the AI found in each picture.'],
+    ['R0', 'how many people one infected person passes HPV to. Above 1 it spreads; below 1 it fades.'],
+  ]
+  const lineH = 5.6
+  const h = 14 + items.length * lineH + 4
+  ensure(d, h + 4)
+  box(p, M, d.y, CW, h, C.infoSoft, undefined, 3)
+  font(p, 9.5, 'bold', C.info)
+  p.text('How to read this report', M + 7, d.y + 8)
+  items.forEach(([k, v], i) => {
+    const y = d.y + 15 + i * lineH
+    font(p, 8.5, 'bold', C.ink)
+    p.text(k + ':', M + 7, y)
+    const kw = p.getTextWidth(k + ':  ')
+    font(p, 8.5, 'normal', C.ink2)
+    p.text(trunc(p, v, CW - 14 - kw), M + 7 + kw, y)
+  })
+  d.y += h + 8
+}
 
-  // Lab engineer vs patient referred-by
-  if (role === 'lab_engineer' || role === 'admin') {
-    p.setFont('helvetica', 'bold')
-    p.setFontSize(F.coverLbl)
-    st(p, C.textMuted)
-    p.text('LAB ENGINEER', cX + 14, engBlockY + 7)
-    p.setFont('helvetica', 'normal')
-    p.setFontSize(F.coverVal)
-    st(p, C.cyan)
-    p.text(labName || 'N/A', cX + 14, engBlockY + 14)
-  } else {
-    p.setFont('helvetica', 'bold')
-    p.setFontSize(F.coverLbl)
-    st(p, C.textMuted)
-    p.text('REFERRED BY', cX + 14, engBlockY + 7)
-    p.setFont('helvetica', 'normal')
-    p.setFontSize(F.coverVal)
-    st(p, C.textPrimary)
-    p.text(PatientDetails?.ReferredBy || 'N/A', cX + 14, engBlockY + 14)
+function drawSummaryTable(d: Doc, props: PDFReportProps) {
+  const { p } = d
+  const { total_cells, total_infected_cells, overall_infection_rate, image_results, S_1_Cal, S_2_Cal, I_Cal, R_Cal, C_Cal, R0_Cal } = props
+  const okCount = image_results.filter((r) => !r.error).length
+
+  section(d, 'Summary of numbers', 'Counts from your pictures, then results from the mathematical model.')
+
+  const rows: { name: string; value: string; note: string; dot: RGB }[] = [
+    { name: 'Cells counted', value: total_cells.toLocaleString(), note: 'All cells found in the pictures', dot: C.brand },
+    { name: 'Infected cells', value: total_infected_cells.toLocaleString(), note: 'Cells that show signs of HPV', dot: C.inf },
+    { name: 'Infection rate', value: `${num(overall_infection_rate, 2)}%`, note: 'Infected cells out of all cells', dot: C.warn },
+    { name: 'Pictures checked', value: String(okCount), note: 'Images analysed by the AI', dot: C.violet },
+    { name: 'S1 - healthy, unvaccinated', value: num(S_1_Cal, 4), note: 'Model: people not yet protected', dot: C.s1 },
+    { name: 'S2 - healthy, vaccinated', value: num(S_2_Cal, 4), note: 'Model: vaccinated, still at some risk', dot: C.s2 },
+    { name: 'I - infected', value: num(I_Cal, 4), note: 'Model: people who have HPV', dot: C.inf },
+    { name: 'R - recovered', value: num(R_Cal, 4), note: 'Model: people who recovered', dot: C.rec },
+    { name: 'C - cancer', value: num(C_Cal, 4), note: 'Model: infection that became cancer', dot: C.can },
+    { name: 'R0 - reproduction number', value: num(R0_Cal, 4), note: 'How fast the virus can spread', dot: C.brand },
+  ]
+
+  const cols = [CW * 0.38, CW * 0.2, CW * 0.42]
+  const rowH = 9
+  const head = () => {
+    box(p, M, d.y, CW, 8.5, C.brandSoft, undefined, 2)
+    font(p, 7.5, 'bold', C.brand)
+    let x = M + 6
+    ;['MEASURE', 'VALUE', 'WHAT IT MEANS'].forEach((h, i) => {
+      p.text(h, x, d.y + 5.6)
+      x += cols[i]
+    })
+    d.y += 9.5
   }
 
-  // Infection rate block
-  const rateY = engBlockY + 22
-  rRect(p, cX + 14, rateY, cW - 28, 28, C.cardBgAlt, C.orange, 0.3, 2)
-  p.setFont('helvetica', 'bold')
-  p.setFontSize(F.sm)
-  st(p, C.textMuted)
-  p.text('OVERALL INFECTION RATE', cX + cW / 2, rateY + 8, { align: 'center' })
+  ensure(d, 8.5 + rowH * 3)
+  head()
+  rows.forEach((r) => {
+    if (d.y + rowH > BOTTOM) {
+      ensure(d, 999)
+      head()
+    }
+    fillC(p, r.dot)
+    p.circle(M + 4, d.y + 4.4, 1.2, 'F')
+    font(p, 9, 'bold', C.ink)
+    p.text(trunc(p, r.name, cols[0] - 10), M + 8, d.y + 5.4)
+    font(p, 9, 'bold', C.ink)
+    p.text(r.value, M + 6 + cols[0], d.y + 5.4)
+    font(p, 8, 'normal', C.muted)
+    p.text(trunc(p, r.note, cols[2] - 4), M + 6 + cols[0] + cols[1], d.y + 5.4)
+    hairline(p, M, d.y + rowH - 0.5, M + CW)
+    d.y += rowH
+  })
+  d.y += 8
+}
 
-  const rateCol: RGB =
-    overall_infection_rate > 60 ? C.riskHigh : overall_infection_rate > 30 ? C.riskMed : C.riskLow
-  p.setFont('helvetica', 'bold')
-  p.setFontSize(22)
-  st(p, rateCol)
-  p.text(`${overall_infection_rate.toFixed(2)}%`, cX + cW / 2, rateY + 22, { align: 'center' })
+function drawCompartmentBars(d: Doc, props: PDFReportProps) {
+  const { p } = d
+  const { S_1_Cal, S_2_Cal, I_Cal, R_Cal, C_Cal } = props
+  const bars: { label: string; value: number; color: RGB }[] = [
+    { label: 'S1  Healthy, unvaccinated', value: S_1_Cal, color: C.s1 },
+    { label: 'S2  Healthy, vaccinated', value: S_2_Cal, color: C.s2 },
+    { label: 'I   Infected', value: I_Cal, color: C.inf },
+    { label: 'R   Recovered', value: R_Cal, color: C.rec },
+    { label: 'C   Cancer', value: C_Cal, color: C.can },
+  ]
+  const max = Math.max(...bars.map((b) => (Number.isFinite(b.value) ? Math.abs(b.value) : 0)), 1e-9)
 
-  // Cover footer
-  dLine(p, cX + 14, cY + cH - 12, cX + cW - 14, cY + cH - 12, C.borderPurple, 0.25)
-  p.setFont('helvetica', 'normal')
-  p.setFontSize(F.xs)
-  st(p, C.textMuted)
-  p.text(
-    'CONFIDENTIAL  \u00b7  HPV Research Lab  \u00b7  www.hpvresearchlab.com',
-    cX + cW / 2,
-    cY + cH - 5,
-    { align: 'center' }
-  )
+  section(d, 'Groups of people in the long run', 'A longer bar means a bigger group. Bars are compared with the largest group.')
+  const rowH = 10
+  const h = bars.length * rowH + 10
+  ensure(d, h + 4)
+  box(p, M, d.y, CW, h, C.white, C.line, 3)
+
+  const labelW = 58
+  const trackX = M + 8 + labelW
+  const trackW = CW - 16 - labelW - 28
+  bars.forEach((b, i) => {
+    const y = d.y + 8 + i * rowH
+    font(p, 8.5, 'normal', C.ink2)
+    p.text(b.label.replace(/\s{2,}/, '  '), M + 8, y + 1)
+    fillC(p, C.surface2)
+    p.roundedRect(trackX, y - 2.6, trackW, 4, 2, 2, 'F')
+    const w = Number.isFinite(b.value) ? (trackW * Math.abs(b.value)) / max : 0
+    if (w > 0) {
+      fillC(p, b.color)
+      p.roundedRect(trackX, y - 2.6, Math.max(w, 2.5), 4, 2, 2, 'F')
+    }
+    font(p, 8.5, 'bold', C.ink)
+    p.text(num(b.value, 3), M + CW - 8, y + 1, { align: 'right' })
+  })
+  d.y += h + 8
+}
+
+function drawR0(d: Doc, r0: number) {
+  const { p } = d
+  const spreading = Number.isFinite(r0) && r0 > 1
+  const tone = spreading ? { fg: C.danger, bg: C.dangerSoft, t: 'Spreading' } : { fg: C.brand, bg: C.brandSoft, t: 'Fading out' }
+  const h = 30
+  section(d, 'Reproduction number (R0)')
+  ensure(d, h + 4)
+  box(p, M, d.y, CW, h, tone.bg, undefined, 3)
+  font(p, 26, 'bold', tone.fg)
+  p.text(num(r0, 3), M + 8, d.y + 19)
+  pill(p, M + 8 + p.getTextWidth(num(r0, 3)) + 6, d.y + 11.2, tone.t, tone.fg, C.white)
+  font(p, 9, 'normal', C.ink)
+  const text = !Number.isFinite(r0)
+    ? 'R0 could not be calculated from these settings.'
+    : spreading
+      ? 'Each infected person is expected to pass HPV to more than one other person, so the infection keeps spreading.'
+      : 'Each infected person is expected to pass HPV to fewer than one other person, so the infection slowly dies out.'
+  p.text(p.splitTextToSize(text, CW / 2 - 8), M + CW / 2 + 2, d.y + 12)
+  d.y += h + 8
+}
+
+function drawCellOverview(d: Doc, props: PDFReportProps) {
+  const { p } = d
+  const { total_cells, total_infected_cells, image_results } = props
+  const ok = image_results.filter((r) => !r.error)
+  const healthy = Math.max(total_cells - total_infected_cells, 0)
+  const infectedShare = total_cells > 0 ? total_infected_cells / total_cells : 0
+
+  section(d, 'Cells and pictures', 'How the cells split, and how the pictures were graded.')
+
+  // healthy vs infected stacked bar
+  ensure(d, 40)
+  box(p, M, d.y, CW, 24, C.white, C.line, 3)
+  const bx = M + 8
+  const bw = CW - 16
+  fillC(p, C.s2)
+  p.roundedRect(bx, d.y + 7, bw, 5, 2.5, 2.5, 'F')
+  if (infectedShare > 0) {
+    fillC(p, C.inf)
+    p.roundedRect(bx + bw * (1 - infectedShare), d.y + 7, Math.max(bw * infectedShare, 2.5), 5, 2.5, 2.5, 'F')
+  }
+  font(p, 8.5, 'normal', C.ink2)
+  fillC(p, C.s2)
+  p.circle(bx + 1.5, d.y + 18, 1.2, 'F')
+  p.text(`Healthy cells: ${healthy.toLocaleString()}`, bx + 5, d.y + 19)
+  fillC(p, C.inf)
+  p.circle(bx + 62, d.y + 18, 1.2, 'F')
+  p.text(`Infected cells: ${total_infected_cells.toLocaleString()}`, bx + 66, d.y + 19)
+  d.y += 30
+
+  // risk + HPV status side by side
+  const risk: Record<string, number> = { Low: 0, Medium: 0, High: 0 }
+  const hpv: Record<string, number> = { Detected: 0, 'Not detected': 0, Unknown: 0 }
+  ok.forEach((r) => {
+    const rb = riskBucket(r.risk)
+    if (rb !== 'Other') risk[rb]++
+    hpv[hpvBucket(r.hpv)]++
+  })
+
+  ensure(d, 40)
+  const gap = 4
+  const w = (CW - gap) / 2
+  const panel = (x: number, title: string, items: { label: string; value: number; fg: RGB; bg: RGB }[]) => {
+    box(p, x, d.y, w, 34, C.white, C.line, 3)
+    font(p, 9.5, 'bold', C.ink)
+    p.text(title, x + 6, d.y + 8)
+    const cw = (w - 12) / items.length
+    items.forEach((it, i) => {
+      const cx = x + 6 + i * cw
+      box(p, cx, d.y + 12, cw - 2.5, 17, it.bg, undefined, 2.5)
+      font(p, 14, 'bold', it.fg)
+      p.text(String(it.value), cx + 4, d.y + 21.5)
+      font(p, 7, 'bold', it.fg)
+      p.text(it.label.toUpperCase(), cx + 4, d.y + 26.2)
+    })
+  }
+  panel(M, 'Risk level of pictures', [
+    { label: 'Low', value: risk.Low, fg: C.brand, bg: C.brandSoft },
+    { label: 'Medium', value: risk.Medium, fg: C.warn, bg: C.warnSoft },
+    { label: 'High', value: risk.High, fg: C.danger, bg: C.dangerSoft },
+  ])
+  panel(M + w + gap, 'HPV status of pictures', [
+    { label: 'Detected', value: hpv.Detected, fg: C.danger, bg: C.dangerSoft },
+    { label: 'Not found', value: hpv['Not detected'], fg: C.brand, bg: C.brandSoft },
+    { label: 'Unknown', value: hpv.Unknown, fg: C.muted, bg: C.surface2 },
+  ])
+  d.y += 42
+}
+
+async function drawExternalCharts(d: Doc, charts: ChartDiv[]) {
+  if (charts.length === 0) return
+  const { default: html2canvas } = await import('html2canvas')
+  for (const chart of charts) {
+    try {
+      const canvas = await html2canvas(chart.element, { scale: 2, backgroundColor: '#ffffff' })
+      const img = canvas.toDataURL('image/png')
+      const w = CW
+      const h = (canvas.height / canvas.width) * w
+      section(d, chart.title)
+      ensure(d, h + 4)
+      d.p.addImage(img, 'PNG', M, d.y, w, h)
+      d.y += h + 8
+    } catch (e) {
+      console.error('Chart capture failed', e)
+    }
+  }
+}
+
+function drawImageTable(d: Doc, results: ImageResult[]) {
+  const { p } = d
+  const ok = results.filter((r) => !r.error)
+  const failed = results.filter((r) => r.error)
+
+  section(d, 'Picture results', `${ok.length} picture${ok.length === 1 ? '' : 's'} checked.`)
+
+  if (ok.length === 0) {
+    font(p, 9, 'normal', C.muted)
+    p.text('No picture results are available.', M + 4, d.y)
+    d.y += 10
+    return
+  }
+
+  const cols = [8, 40, 28, 28, 22, 18, 34]
+  const heads = ['#', 'PICTURE', 'RESULT', 'STAGE', 'RISK', 'CONF.', 'INFECTED / CELLS']
+  const rowH = 9
+  const head = () => {
+    box(p, M, d.y, CW, 8.5, C.brandSoft, undefined, 2)
+    font(p, 7, 'bold', C.brand)
+    let x = M + 3
+    heads.forEach((h, i) => {
+      p.text(h, x, d.y + 5.6)
+      x += cols[i]
+    })
+    d.y += 9.5
+  }
+
+  ensure(d, 8.5 + rowH * 2)
+  head()
+  ok.forEach((r, i) => {
+    if (d.y + rowH > BOTTOM) {
+      ensure(d, 999)
+      head()
+    }
+    let x = M + 3
+    const cell = (text: string, w: number, weight: 'normal' | 'bold' = 'normal', color: RGB = C.ink2) => {
+      font(p, 8, weight, color)
+      p.text(trunc(p, text, w - 3), x, d.y + 5.8)
+      x += w
+    }
+    cell(String(i + 1), cols[0], 'bold', C.muted)
+    cell(r.image, cols[1], 'normal', C.ink)
+    cell(r.result, cols[2], 'bold', C.ink)
+    cell(r.stage, cols[3])
+    const tone = riskTone(r.risk)
+    pill(p, x - 1, d.y + 1.8, trunc(p, r.risk || '-', cols[4] - 4), tone.fg, tone.bg, 6.5)
+    x += cols[4]
+    cell(typeof r.confidence === 'number' ? `${num(r.confidence, 1)}%` : '-', cols[5])
+    cell(`${(r.infected_cells ?? 0).toLocaleString()} / ${(r.total_cells ?? 0).toLocaleString()}`, cols[6], 'bold', C.ink)
+    hairline(p, M, d.y + rowH - 0.5, M + CW)
+    d.y += rowH
+  })
+
+  if (failed.length > 0) {
+    d.y += 3
+    ensure(d, 12 + failed.length * 5)
+    const h = 10 + failed.length * 5
+    box(p, M, d.y, CW, h, C.dangerSoft, undefined, 3)
+    font(p, 8.5, 'bold', C.danger)
+    p.text(`${failed.length} picture${failed.length === 1 ? '' : 's'} could not be checked`, M + 6, d.y + 7)
+    font(p, 8, 'normal', C.ink2)
+    failed.forEach((f, i) => p.text(trunc(p, `${f.image}: ${f.error}`, CW - 12), M + 6, d.y + 12.5 + i * 5))
+    d.y += h
+  }
+  d.y += 8
+}
+
+function drawSignOff(d: Doc, name: string) {
+  const { p } = d
+  section(d, 'Lab engineer sign-off')
+  ensure(d, 36)
+  box(p, M, d.y, CW, 32, C.white, C.line, 3)
+  font(p, 7.5, 'normal', C.muted)
+  p.text('PREPARED BY', M + 8, d.y + 9)
+  font(p, 11, 'bold', C.ink)
+  p.text(name || 'Not provided', M + 8, d.y + 15)
+  pill(p, M + 8, d.y + 18.5, 'AUTHORISED SIGNATORY', C.brand, C.brandSoft, 6.5)
+
+  const sx = M + CW / 2 + 6
+  drawC(p, C.ink2)
+  p.setLineWidth(0.3)
+  p.line(sx, d.y + 22, M + CW - 8, d.y + 22)
+  font(p, 7.5, 'normal', C.muted)
+  p.text('Signature', sx, d.y + 26.5)
+  const date = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
+  font(p, 8.5, 'bold', C.ink)
+  p.text(date, M + CW - 8, d.y + 26.5, { align: 'right' })
+  d.y += 38
+}
+
+function drawDisclaimer(d: Doc) {
+  const { p } = d
+  const lines = [
+    'This report was created by the HPV Research Lab website. It is not a medical diagnosis and does not replace a doctor.',
+    'The infection rate comes from counting cells in your pictures. The forecast numbers come from a mathematical model.',
+    'Please have a qualified medical professional review these results.',
+  ]
+  font(p, 8, 'normal', C.ink2)
+  const wrapped = lines.map((l) => p.splitTextToSize(l, CW - 20) as string[])
+  const count = wrapped.reduce((n, w) => n + w.length, 0)
+  const h = 14 + count * 4.2
+  ensure(d, h + 4)
+  box(p, M, d.y, CW, h, C.warnSoft, undefined, 3)
+  font(p, 9.5, 'bold', C.warn)
+  p.text('Important notes', M + 7, d.y + 8)
+  let y = d.y + 14.5
+  wrapped.forEach((w) => {
+    fillC(p, C.warn)
+    p.circle(M + 8, y - 1, 0.7, 'F')
+    font(p, 8, 'normal', C.ink2)
+    w.forEach((line, i) => p.text(line, M + 11, y + i * 4.2))
+    y += w.length * 4.2
+  })
+  d.y += h + 4
 }
 
 // ─────────────────────────────────────────────
-//  JWT TOKEN HELPER
+//  HELPERS
 // ─────────────────────────────────────────────
 
 function decodedToken(): Record<string, unknown> {
@@ -1413,128 +723,58 @@ function decodedToken(): Record<string, unknown> {
 // ─────────────────────────────────────────────
 
 export async function generateProfessionalPDF(props: PDFReportProps): Promise<Blob> {
-  const {
-    logo_url,
-    accountRole,
-    overall_infection_rate,
-    total_cells,
-    total_infected_cells,
-    image_results,
-    S_1_Cal,
-    S_2_Cal,
-    I_Cal,
-    R_Cal,
-    C_Cal,
-    R0_Cal,
-    LabEngineerName,
-    chartDivs = [],
-  } = props
+  const { accountRole, overall_infection_rate, total_cells, total_infected_cells, image_results, R0_Cal, LabEngineerName, chartDivs = [], PatientDetails, patient_name } = props
 
-  // Role resolution — prop > JWT > default patient
+  // Role: explicit prop, then the signed-in user's token, then patient.
   const decoded = decodedToken()
-  const role: AccountRole =
-    accountRole ??
-    (decoded?.role as AccountRole) ??
-    (decoded?.user_type as AccountRole) ??
-    'patient'
-
+  const role: AccountRole = accountRole ?? (decoded?.role as AccountRole) ?? (decoded?.user_type as AccountRole) ?? 'patient'
   const labName: string =
     LabEngineerName ||
     (typeof decoded?.lab_engineer === 'string' ? decoded.lab_engineer : '') ||
     (typeof decoded?.username === 'string' ? decoded.username : '') ||
     'HPV Lab Engineer'
+  const isLab = role === 'lab_engineer' || role === 'admin'
 
-  const isLabOrAdmin = role === 'lab_engineer' || role === 'admin'
-
-  // Init
   const pdf = new jsPDF('p', 'mm', 'a4')
-  const pW = pdf.internal.pageSize.getWidth()
-  const pH = pdf.internal.pageSize.getHeight()
+  pdf.setProperties({ title: 'HPV Analysis Report', subject: 'HPV Research Lab', author: 'HPV Research Lab' })
+  const typeLabel = isLab ? 'LAB REPORT' : 'PATIENT REPORT'
+  const d: Doc = { p: pdf, y: TOP, typeLabel }
 
-  // ─ Page 1: Cover
-  await drawCover(pdf, props, pW, pH, labName, role)
+  pageHeader(pdf, true, typeLabel)
 
-  // ─ Page 2+: Report body
+  const patientName = PatientDetails?.Name || patient_name || 'the patient'
+  const dateText = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
+  const okPictures = image_results.filter((r) => !r.error).length
+
+  // Page 1: the answer first, details after
+  drawTitle(d, patientName, dateText)
+  drawHero(d, overall_infection_rate, total_infected_cells, total_cells, okPictures)
+  drawStatTiles(d, [
+    { label: 'Pictures checked', value: String(okPictures), color: C.ink },
+    { label: 'Cells counted', value: total_cells.toLocaleString(), color: C.brand },
+    { label: 'Infected cells', value: total_infected_cells.toLocaleString(), color: C.danger },
+  ])
+  drawPatientInfo(d, props, isLab, labName)
+  drawHowToRead(d)
+
+  // Page 2+: details
   pdf.addPage()
-  pageHeader(pdf, pW)
-  await drawLogo(pdf, logo_url, pW)
+  pageHeader(pdf, false, typeLabel)
+  d.y = TOP
+  drawSummaryTable(d, props)
+  drawCompartmentBars(d, props)
+  drawR0(d, R0_Cal)
+  drawCellOverview(d, props)
+  await drawExternalCharts(d, chartDivs)
+  drawImageTable(d, image_results)
+  if (isLab) drawSignOff(d, labName)
+  drawDisclaimer(d)
 
-  let y = L.headerH + 8
-
-  // Patient info (always)
-  y = ensureSpace(pdf, y, 92, pH, pW, pageHeader)
-  y = drawPatientInfo(pdf, props, y, pW)
-
-  // Lab engineer block (lab/admin only)
-  if (isLabOrAdmin) {
-    y = ensureSpace(pdf, y, 32, pH, pW, pageHeader)
-    y = drawLabEngineerInfo(pdf, labName, y, pW)
-  }
-
-  // Stats badges
-  y = ensureSpace(pdf, y, 38, pH, pW, pageHeader)
-  y = drawStatBadges(
-    pdf,
-    overall_infection_rate,
-    total_cells,
-    total_infected_cells,
-    image_results.length,
-    y,
-    pW
-  )
-
-  // Infection rate bar
-  y = ensureSpace(pdf, y, 34, pH, pW, pageHeader)
-  y = drawInfectionBar(pdf, overall_infection_rate, y, pW)
-
-  // Summary table
-  y = ensureSpace(pdf, y, 120, pH, pW, pageHeader)
-  y = drawSummaryTable(pdf, props, y, pW)
-
-  // SIR compartment list
-  y = ensureSpace(pdf, y, 82, pH, pW, pageHeader)
-  y = drawSIRBlock(pdf, S_1_Cal, S_2_Cal, I_Cal, R_Cal, C_Cal, R0_Cal, y, pW)
-
-  // SIR bar chart
-  y = ensureSpace(pdf, y, 76, pH, pW, pageHeader)
-  y = drawSIRBarChart(pdf, S_1_Cal, S_2_Cal, I_Cal, R_Cal, C_Cal, R0_Cal, y, pW)
-
-  // Infection donut chart
-  y = ensureSpace(pdf, y, 64, pH, pW, pageHeader)
-  y = drawInfectionPieChart(pdf, total_cells, total_infected_cells, y, pW)
-
-  // Risk distribution
-  y = ensureSpace(pdf, y, 56, pH, pW, pageHeader)
-  y = drawRiskDistribution(pdf, image_results, y, pW)
-
-  // HPV status card
-  y = ensureSpace(pdf, y, 40, pH, pW, pageHeader)
-  y = drawHPVStatusCard(pdf, image_results, y, pW)
-
-  // External charts
-  y = await drawExternalCharts(pdf, chartDivs, y, pW, pH)
-
-  // Image results
-  y = await drawImageTable(pdf, image_results, y, pW, pH)
-
-  // Sign-off (lab/admin only)
-  if (isLabOrAdmin) {
-    y = drawSignOff(pdf, labName, y, pW, pH)
-  }
-
-  // Disclaimer
-  y = drawDisclaimer(pdf, y, pW, pH)
-
-  // Add footers to all content pages (skip cover = page 1)
-  const totalPages = (pdf as any).internal.getNumberOfPages()
-  for (let pg = 2; pg <= totalPages; pg++) {
+  const total = (pdf as any).internal.getNumberOfPages()
+  for (let pg = 1; pg <= total; pg++) {
     pdf.setPage(pg)
-    pageFooter(pdf, pW, pH, pg - 1, totalPages - 1)
+    pageFooter(pdf, pg, total)
   }
 
   return pdf.output('blob')
 }
-
-// ─────────────────────────────────────────────
-//  END OF FILE
-// ─────────────────────────────────────────────

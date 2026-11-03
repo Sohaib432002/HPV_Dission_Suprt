@@ -9,8 +9,8 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts'
-import { useEffect, useMemo, useState } from 'react'
-import { Calculator, FileDown, Info, RefreshCw } from 'lucide-react'
+import { useMemo, useRef, useState } from 'react'
+import { Calculator, CheckCircle2, Circle, Download, ExternalLink, FileDown, Info, Loader2, RefreshCw, TriangleAlert } from 'lucide-react'
 
 import { generateProfessionalPDF } from './Report'
 import { PieChartForPDF, LineChartForPDF } from './PdfCharts'
@@ -48,6 +48,10 @@ const DEFAULT_VISIBLE: Record<SeriesKey, boolean> = {
   Rt: false,
 }
 
+type ReportStage = 'idle' | 'building' | 'saving' | 'done' | 'error'
+type ReportState = { stage: ReportStage; fileName: string; url: string | null; saved: boolean }
+const IDLE_REPORT: ReportState = { stage: 'idle', fileName: '', url: null, saved: false }
+
 const SimulationChart = ({
   mainResult,
   data,
@@ -59,20 +63,20 @@ const SimulationChart = ({
   const toast = useToast()
   const { user, isAuth } = useAuth()
 
-  const [chartData, setChartData] = useState<any[]>([])
-  const [mode, setMode] = useState<'ode' | 'ml'>('ode')
   const [visible, setVisible] = useState(DEFAULT_VISIBLE)
   const [showLimitation, setShowLimitation] = useState(false)
   const [showR0, setShowR0] = useState(false)
-  const [saving, setSaving] = useState(false)
+  const [reportOpen, setReportOpen] = useState(false)
+  const [report, setReport] = useState<ReportState>(IDLE_REPORT)
+  const pdfBlob = useRef<Blob | null>(null)
 
-  useEffect(() => {
-    if (!data) return
-    if (data.data) {
-      setMode('ode')
+  // Chart rows are derived from the API response, so they are computed, not stored in state.
+  const { mode, chartData } = useMemo<{ mode: 'ode' | 'ml'; chartData: any[] }>(() => {
+    if (data?.data) {
       const { time, S1, S2, Infected, Recovered, Cancer, Rt } = data.data
-      setChartData(
-        time.map((t: number, i: number) => ({
+      return {
+        mode: 'ode',
+        chartData: time.map((t: number, i: number) => ({
           year: startYear + Math.floor(t / 12),
           S1: S1[i],
           S2: S2[i],
@@ -80,18 +84,20 @@ const SimulationChart = ({
           Recovered: Recovered[i],
           Cancer: Cancer[i],
           Rt: Rt[i],
-        }))
-      )
-    } else if (data.future_time) {
-      setMode('ml')
+        })),
+      }
+    }
+    if (data?.future_time) {
       const { future_time, ml_prediction } = data
-      setChartData(
-        future_time.map((t: number, i: number) => ({
+      return {
+        mode: 'ml',
+        chartData: future_time.map((t: number, i: number) => ({
           year: startYear + Math.floor(t / 12),
           prediction: ml_prediction[i],
-        }))
-      )
+        })),
+      }
     }
+    return { mode: 'ode', chartData: [] }
   }, [data, startYear])
 
   const axis = useMemo(
@@ -106,11 +112,44 @@ const SimulationChart = ({
 
   const toggle = (key: SeriesKey) => setVisible((v) => ({ ...v, [key]: !v[key] }))
 
+  const running = report.stage === 'building' || report.stage === 'saving'
+
+  const closeReport = () => {
+    setReportOpen(false)
+    if (!running) {
+      if (report.url) URL.revokeObjectURL(report.url)
+      pdfBlob.current = null
+      setReport(IDLE_REPORT)
+    }
+  }
+
+  const triggerDownload = (url: string, fileName: string) => {
+    const a = document.createElement('a')
+    a.href = url
+    a.download = fileName
+    a.click()
+  }
+
+  const uploadReport = async (blob: Blob, fileName: string) => {
+    const formData = new FormData()
+    formData.append('document', blob, fileName)
+    formData.append('result', 'HPV Analysis Completed')
+    const response = await apiFetch('/api/reports/upload/', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${getAccessToken()}` },
+      body: formData,
+    })
+    if (!response.ok) console.error(await response.json().catch(() => ({})))
+    return response.ok
+  }
+
   const handleSubmit = async () => {
-    setSaving(true)
+    setReportOpen(true)
+    if (running) return
+    if (report.url) URL.revokeObjectURL(report.url)
+    setReport({ ...IDLE_REPORT, stage: 'building' })
     try {
-      const token: any = getAccessToken()
-      const pdfBlob: Blob = await generateProfessionalPDF({
+      const blob: Blob = await generateProfessionalPDF({
         logo_url: '/logo.png',
         patient_name: user?.username || 'anonyumus',
         // SimpleJWT stores user_id as a number; the PDF writer only accepts strings.
@@ -129,41 +168,39 @@ const SimulationChart = ({
         R0_Cal: data.data.R_0,
         PatientDetails: PatientDetails,
       })
+      pdfBlob.current = blob
 
       const fileName =
         user?.role === 'lab_engineer'
           ? `HPV_Report_${PatientDetails?.Name || 'Patient'}.pdf`
           : `HPV_Report_${user?.username || 'Patient'}.pdf`
 
-      const url = window.URL.createObjectURL(pdfBlob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = fileName
-      a.click()
-      window.URL.revokeObjectURL(url)
+      const url = URL.createObjectURL(blob)
+      triggerDownload(url, fileName)
+      setReport({ stage: 'saving', fileName, url, saved: false })
 
-      const formData = new FormData()
-      formData.append('document', pdfBlob, fileName)
-      formData.append('result', 'HPV Analysis Completed')
-
-      const response = await apiFetch('/api/reports/upload/', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData,
-      })
-
-      if (response.ok) {
-        toast.success('PDF downloaded and saved successfully.')
-      } else {
-        console.error(await response.json())
-        toast.error('The PDF downloaded, but uploading it failed.')
-      }
+      const saved = await uploadReport(blob, fileName).catch(() => false)
+      setReport({ stage: 'done', fileName, url, saved })
     } catch (error) {
       console.error(error)
-      toast.error('Something went wrong while generating the report.')
-    } finally {
-      setSaving(false)
+      setReport({ ...IDLE_REPORT, stage: 'error' })
     }
+  }
+
+  const retrySave = async () => {
+    if (!pdfBlob.current) return
+    setReport((r) => ({ ...r, stage: 'saving' }))
+    const saved = await uploadReport(pdfBlob.current, report.fileName).catch(() => false)
+    setReport((r) => ({ ...r, stage: 'done', saved }))
+    if (saved) toast.success('Report saved to your account.')
+  }
+
+  const stepState = (step: 1 | 2 | 3): 'done' | 'active' | 'pending' | 'warn' => {
+    const { stage, saved } = report
+    if (stage === 'building') return step === 1 ? 'active' : 'pending'
+    if (stage === 'saving') return step < 3 ? 'done' : 'active'
+    if (stage === 'done') return step === 3 && !saved ? 'warn' : 'done'
+    return 'pending'
   }
 
   return (
@@ -178,7 +215,7 @@ const SimulationChart = ({
           </div>
           <div className="flex flex-wrap gap-2">
             {mainResult !== null && isAuth && (
-              <Button size="sm" loading={saving} onClick={handleSubmit} icon={<FileDown className="h-4 w-4" />}>
+              <Button size="sm" loading={running} onClick={handleSubmit} icon={<FileDown className="h-4 w-4" />}>
                 Download &amp; save report
               </Button>
             )}
@@ -325,6 +362,104 @@ const SimulationChart = ({
           </div>
         )}
       </div>
+
+      <Modal
+        open={reportOpen}
+        onClose={closeReport}
+        title={report.stage === 'done' ? 'Your report is ready' : report.stage === 'error' ? 'Something went wrong' : 'Creating your report'}
+        description={
+          report.stage === 'done'
+            ? 'It was downloaded to this device and saved to your account.'
+            : report.stage === 'error'
+              ? 'We could not create the PDF. Nothing was saved.'
+              : 'This takes a few seconds. Please keep this page open.'
+        }
+      >
+        {report.stage !== 'error' && (
+          <ol className="space-y-3">
+            {[
+              [1, 'Creating your PDF', 'Putting your results into a clear report'],
+              [2, 'Downloading to this device', 'The file goes to your Downloads folder'],
+              [3, 'Saving to your account', 'So you can find it again later'],
+            ].map(([n, title, hint]) => {
+              const st = stepState(n as 1 | 2 | 3)
+              return (
+                <li key={n as number} className="flex items-start gap-3.5 rounded-xl border border-line bg-surface p-3.5">
+                  <span
+                    className={`mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full ${
+                      st === 'done'
+                        ? 'bg-brand text-brand-fg'
+                        : st === 'warn'
+                          ? 'bg-warn-soft text-warn'
+                          : st === 'active'
+                            ? 'bg-brand-soft text-brand'
+                            : 'bg-surface-2 text-muted'
+                    }`}
+                    aria-hidden
+                  >
+                    {st === 'done' ? (
+                      <CheckCircle2 className="h-4 w-4" />
+                    ) : st === 'warn' ? (
+                      <TriangleAlert className="h-4 w-4" />
+                    ) : st === 'active' ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Circle className="h-4 w-4" />
+                    )}
+                  </span>
+                  <div className="min-w-0">
+                    <p className={`text-sm font-bold ${st === 'pending' ? 'text-muted' : 'text-ink'}`}>
+                      {title}
+                      <span className="sr-only"> ({st})</span>
+                    </p>
+                    <p className="text-xs text-muted">
+                      {st === 'warn' ? 'Could not save it to your account this time.' : hint}
+                    </p>
+                  </div>
+                </li>
+              )
+            })}
+          </ol>
+        )}
+
+        {report.stage === 'done' && (
+          <div className="mt-5 space-y-4">
+            <div className="flex items-center gap-3 rounded-xl bg-brand-soft p-3.5">
+              <FileDown className="h-5 w-5 shrink-0 text-brand" aria-hidden />
+              <p className="min-w-0 truncate text-sm font-semibold text-ink">{report.fileName}</p>
+            </div>
+            {!report.saved && (
+              <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-warn-soft p-3.5 text-sm text-ink-2">
+                <span>Your PDF was downloaded, but it could not be saved to your account.</span>
+                <Button size="sm" variant="secondary" onClick={retrySave}>
+                  Try saving again
+                </Button>
+              </div>
+            )}
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button variant="secondary" onClick={() => report.url && triggerDownload(report.url, report.fileName)} icon={<Download className="h-4 w-4" />}>
+                Download again
+              </Button>
+              {report.url && (
+                <a href={report.url} target="_blank" rel="noreferrer" className={buttonClass({})}>
+                  <ExternalLink className="h-4 w-4" aria-hidden /> Open report
+                </a>
+              )}
+            </div>
+          </div>
+        )}
+
+        {report.stage === 'error' && (
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" onClick={closeReport}>
+              Close
+            </Button>
+            <Button onClick={handleSubmit} icon={<RefreshCw className="h-4 w-4" />}>
+              Try again
+            </Button>
+          </div>
+        )}
+      </Modal>
 
       <Modal
         open={showLimitation && !!Limitaions && Limitaions !== ''}
