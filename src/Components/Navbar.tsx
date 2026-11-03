@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { LogOut, Menu, Moon, Sun, X } from 'lucide-react'
+import { CircleHelp, LogOut, Menu, Moon, Sun, X } from 'lucide-react'
+import { useOnboarding } from './onboarding/OnboardingContext'
 import { useTheme } from './ThemeContext'
 import { useAuth, clearTokens } from '../lib/auth'
 import { buttonClass } from './ui/buttonStyles'
@@ -16,6 +17,7 @@ const Navbar = () => {
   const { pathname } = useLocation()
   const { theme, toggleTheme } = useTheme()
   const { isAuth, role } = useAuth()
+  const { openTour } = useOnboarding()
   // The drawer is tied to the page it was opened on, so navigating closes it.
   const [openAt, setOpenAt] = useState<string | null>(null)
   const menuOpen = openAt === pathname
@@ -41,6 +43,7 @@ const Navbar = () => {
   const links = [
     { to: '/', label: 'Home', end: true },
     { to: '/about', label: 'About' },
+    { to: '/sample-images', label: 'Sample Images' },
     { to: '/contact', label: 'Contact' },
     ...(isAuth
       ? [
@@ -62,13 +65,25 @@ const Navbar = () => {
     </button>
   )
 
+  const helpButton = (
+    <button
+      type="button"
+      onClick={openTour}
+      aria-label="How this website works"
+      title="How this website works"
+      className="grid h-10 w-10 place-items-center rounded-xl border border-line text-ink-2 transition-colors hover:border-brand hover:text-brand"
+    >
+      <CircleHelp className="h-[18px] w-[18px]" />
+    </button>
+  )
+
   return (
     <header className="sticky top-0 z-50 border-b border-line bg-surface/85 backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
         <Link to="/" className="flex items-center gap-2.5" aria-label="HPV Research Lab home">
           <BrandMark />
           <span className="font-display text-lg font-extrabold tracking-tight text-ink">
-            HPV<span className="text-brand"> Research Lab</span>
+            HPV<span className="text-brand lg:max-xl:hidden"> Research Lab</span>
           </span>
         </Link>
 
@@ -81,6 +96,7 @@ const Navbar = () => {
         </nav>
 
         <div className="hidden items-center gap-2 lg:flex">
+          {helpButton}
           {themeButton}
           {isAuth ? (
             <button type="button" onClick={handleLogout} className={buttonClass({ variant: 'secondary', size: 'sm' })}>
@@ -99,6 +115,7 @@ const Navbar = () => {
         </div>
 
         <div className="flex items-center gap-2 lg:hidden">
+          {helpButton}
           {themeButton}
           <button
             type="button"

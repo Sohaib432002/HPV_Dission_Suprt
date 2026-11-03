@@ -1,10 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState, useEffect, useCallback } from 'react'
+import { Link } from 'react-router-dom'
 import { ImagePlus, LineChart, UploadCloud, X } from 'lucide-react'
 import ResultDashboard from './ResultDashboard'
 import FlowChart from './FlowChart'
 import SimulationChart from './Graph'
-import { Button, Card, CardHeader, Container, EmptyState, Field, Input, Modal, PageHeader, Spinner, useToast } from '../ui'
+import { Button, Card, CardHeader, Container, EmptyState, Field, Input, Modal, PageGuide, PageHeader, Spinner, useToast } from '../ui'
 import { apiFetch } from '../../lib/api'
 import { useAuth } from '../../lib/auth'
 
@@ -152,9 +153,27 @@ const FuturePredict = () => {
   return (
     <Container className="space-y-8 py-10 sm:py-12">
       <PageHeader
-        title="Future prediction from infected images"
-        description="Upload infected cell images and our machine learning model will analyze them to generate future infection predictions."
+        title="Check cell pictures and see what may happen next"
+        description="Add microscope pictures of cervical cells. The website checks them for signs of HPV, then shows how the infection could change over time."
       />
+
+      <PageGuide
+        id="prediction"
+        title="How this page works"
+        steps={[
+          'Add one or more cell pictures (JPG or PNG).',
+          'Press the button and wait while the pictures are checked.',
+          'Look at the results, then press “Predict graph” to see the forecast.',
+          'Download the PDF report to keep your results.',
+        ]}
+      >
+        You do not need to know any medical or computer terms. The website does the counting and the
+        calculations for you. Results are for research and should be confirmed by a doctor.{' '}
+        No pictures to try?{' '}
+        <Link to="/sample-images" className="font-semibold text-brand underline-offset-2 hover:underline">
+          Download sample images
+        </Link>
+      </PageGuide>
 
       {!results ? (
         <Card className="mx-auto max-w-3xl">
@@ -173,8 +192,8 @@ const FuturePredict = () => {
               <span className="grid h-14 w-14 place-items-center rounded-2xl bg-brand-soft text-brand">
                 <UploadCloud className="h-7 w-7" aria-hidden />
               </span>
-              <span className="mt-4 text-base font-semibold text-ink">Click or drag images here</span>
-              <span className="mt-1 text-sm text-muted">PNG or JPG — multiple images supported</span>
+              <span className="mt-4 text-base font-semibold text-ink">Click here, or drag your pictures into this box</span>
+              <span className="mt-1 text-sm text-muted">PNG or JPG. You can add several pictures at once.</span>
               <input type="file" multiple accept="image/*" onChange={handleFileChange} className="sr-only" />
             </label>
 
@@ -209,14 +228,14 @@ const FuturePredict = () => {
               onClick={handleSubmit}
               icon={<ImagePlus className="h-5 w-5" />}
             >
-              {uploading ? 'Uploading…' : 'Upload images & run prediction'}
+              {uploading ? 'Uploading…' : 'Check my pictures'}
             </Button>
           </div>
         </Card>
       ) : (
         <div className="grid items-start gap-6 lg:grid-cols-[420px_1fr]">
           <Card className="lg:sticky lg:top-24">
-            <CardHeader title="Analysis pipeline" description="Follow each stage from image to forecast." />
+            <CardHeader title="Your progress" description="Follow each step from picture to forecast." />
             <div className="p-5 sm:p-6">
               <FlowChart
                 showResult={showResult}

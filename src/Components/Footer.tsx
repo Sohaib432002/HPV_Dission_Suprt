@@ -2,9 +2,11 @@ import { Link } from 'react-router-dom'
 import { Mail, MapPin, Phone } from 'lucide-react'
 import { useAuth } from '../lib/auth'
 import { BrandMark } from './ui/BrandMark'
+import { useOnboarding } from './onboarding/OnboardingContext'
 
 const Footer = () => {
   const { isAuth, role } = useAuth()
+  const { openTour } = useOnboarding()
 
   const columns = [
     {
@@ -12,8 +14,10 @@ const Footer = () => {
       links: [
         { to: '/', label: 'Home' },
         { to: '/about', label: 'About HPV' },
+        { to: '/sample-images', label: 'Sample images' },
         { to: '/contact', label: 'Contact' },
       ],
+      tour: true,
     },
     {
       title: 'Research tools',
@@ -58,6 +62,17 @@ const Footer = () => {
                   </Link>
                 </li>
               ))}
+              {'tour' in col && (
+                <li>
+                  <button
+                    type="button"
+                    onClick={openTour}
+                    className="text-white/65 transition-colors hover:text-white"
+                  >
+                    How this website works
+                  </button>
+                </li>
+              )}
             </ul>
           </nav>
         ))}

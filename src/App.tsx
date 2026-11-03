@@ -11,6 +11,7 @@ const About = lazy(() => import('./Components/Routes/about'))
 const Contact = lazy(() => import('./Components/Routes/Contact'))
 const AppSimulation = lazy(() => import('./Components/Routes/AppSimulation'))
 const FuturePredict = lazy(() => import('./Components/Routes/FuturePredict'))
+const SampleImages = lazy(() => import('./Components/Routes/SampleImages'))
 const SignUp = lazy(() => import('./Components/Routes/SignUp'))
 const Login = lazy(() => import('./Components/Routes/Login'))
 const PatientProfile = lazy(() => import('./Components/Routes/PatientProfile'))
@@ -25,6 +26,7 @@ export default function App() {
         <Route path="simulation" element={<AppSimulation />} />
         <Route path="contact" element={<Contact />} />
         <Route path="future-predict" element={<FuturePredict />} />
+        <Route path="sample-images" element={<SampleImages />} />
         <Route path="SignUp" element={<SignUp />} />
         <Route path="Login" element={<Login />} />
         <Route path="PatientProfile" element={<PatientProfile />} />
