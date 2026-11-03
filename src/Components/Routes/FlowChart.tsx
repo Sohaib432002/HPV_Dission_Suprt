@@ -1,10 +1,10 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState } from 'react'
+import { Check, ClipboardList, Pencil } from 'lucide-react'
 import Processing from './Processing'
 import CompletedAnimation from './Completed'
 import InputForm from './InputForm'
-import { useTheme } from '../ThemeContext'
+import { Button } from '../ui'
 
 type FlowChartProps = {
   showResult: boolean
@@ -17,8 +17,51 @@ type FlowChartProps = {
   handlePredictionSubmit: any
 }
 
+type StepState = 'done' | 'active' | 'pending'
+
+function Step({
+  index,
+  title,
+  state,
+  last,
+  children,
+}: {
+  index: number
+  title: string
+  state: StepState
+  last?: boolean
+  children?: React.ReactNode
+}) {
+  return (
+    <li className="relative flex gap-4">
+      <div className="flex flex-col items-center">
+        <span
+          className={`grid h-9 w-9 shrink-0 place-items-center rounded-full text-sm font-bold transition-colors ${
+            state === 'done'
+              ? 'bg-brand text-brand-fg'
+              : state === 'active'
+                ? 'border-2 border-brand bg-brand-soft text-brand'
+                : 'border border-line bg-surface-2 text-muted'
+          }`}
+          aria-hidden
+        >
+          {state === 'done' ? <Check className="h-4 w-4" /> : index}
+        </span>
+        {!last && <span className={`mt-1 w-px flex-1 ${state === 'done' ? 'bg-brand' : 'bg-line'}`} aria-hidden />}
+      </div>
+      <div className={`min-w-0 flex-1 ${last ? '' : 'pb-8'}`}>
+        <h3 className={`pt-1.5 text-base font-bold ${state === 'pending' ? 'text-muted' : 'text-ink'}`}>
+          {title}
+          <span className="sr-only"> ({state})</span>
+        </h3>
+        {children && <div className="mt-3">{children}</div>}
+      </div>
+    </li>
+  )
+}
+
+/** Vertical pipeline: analyse images → review results → configure and run the simulation. */
 const FlowChart = ({
-  
   mainResult,
   InfectionRate,
   setshowResult,
@@ -27,106 +70,50 @@ const FlowChart = ({
   handlePredictionSubmit,
 }: FlowChartProps) => {
   const [InputUser, setInputUser] = useState<boolean>(false)
-  const { theme } = useTheme()
 
-  const textColor = theme === 'dark' ? 'text-white' : 'text-gray-900'
-  const arrowColor = theme === 'dark' ? 'text-cyan-300' : 'text-cyan-600'
+  const analysed = mainResult != null
+  const hasRate = InfectionRate != null
 
   return (
-    <div
-      className={`flex flex-col items-center justify-center space-y-6 p-4 transition-all duration-500 ${textColor}`}
-    >
-      {/* Top Box */}
-      <div className="rounded overflow-hidden w-[250px] h-[250px] relative shadow-xl">
-        <div
-          className="absolute inset-0 bg-cover bg-center"
-          style={{
-            backgroundImage:
-              "url('https://justbuildthings.com/_next/image?url=%2Fimages%2Fpdf-analysis-icons%2Fdocument-analyzer.png&w=3840&q=70')",
-          }}
-        />
-        <div
-          className={`absolute inset-0 flex items-center justify-center backdrop-blur ${
-            theme === 'dark' ? 'bg-black/40' : 'bg-white/40'
-          }`}
-        >
-          {mainResult == null ? <Processing /> : <CompletedAnimation />}
-        </div>
-      </div>
-
-      {/* Result Section */}
-      {mainResult != null && (
-        <>
-          {/* Arrows */}
-          <div className={`flex flex-col items-center text-2xl ${arrowColor}`}>
-            <span className="animate-bounce">↓</span>
-            <span className="animate-bounce delay-150">↓</span>
-            <span className="animate-bounce delay-300">↓</span>
+    <ol>
+      <Step index={1} title="Analyzing cell images" state={analysed ? 'done' : 'active'}>
+        {analysed ? (
+          <div className="space-y-3">
+            <CompletedAnimation label="Analysis complete" />
+            <Button full variant="secondary" onClick={() => setshowResult(true)} icon={<ClipboardList className="h-4 w-4" />}>
+              Check results
+            </Button>
           </div>
+        ) : (
+          <Processing label="Running the classification model…" />
+        )}
+      </Step>
 
-          {/* Button */}
-          <button
-            onClick={() => setshowResult(true)}
-            className={`px-6 py-3 rounded font-bold tracking-wide uppercase text-sm transition-all duration-300 ${
-              theme === 'dark'
-                ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white hover:scale-105 shadow-lg'
-                : 'bg-gradient-to-r from-cyan-500 to-teal-500 text-white hover:scale-105 shadow-md'
-            }`}
-          >
-            Check Results
-          </button>
-        </>
-      )}
-
-      {/* Infection Flow */}
-      {InfectionRate != null && (
-        <>
-          {/* Arrows */}
-          <div className={`flex flex-col items-center text-2xl ${arrowColor}`}>
-            <span className="animate-bounce">↓</span>
-            <span className="animate-bounce delay-150">↓</span>
-            <span className="animate-bounce delay-300">↓</span>
-          </div>
-
-          {/* Input Form */}
-          {!InputUser && (
-            <div
-              className={`w-full max-w-md backdrop-blur-lg rounded p-4 border ${
-                theme === 'dark' ? 'bg-white/10 border-white/20' : 'bg-white/80 border-gray-200'
-              }`}
-            >
-              <InputForm
-                handlePredictionSubmit={handlePredictionSubmit}
-                setParams={setParams}
-                params={params}
-                InfectionRate={InfectionRate}
-                setInputUser={setInputUser}
-              />
+      <Step
+        index={2}
+        title="Simulation parameters"
+        state={!hasRate ? 'pending' : InputUser ? 'done' : 'active'}
+        last
+      >
+        {hasRate &&
+          (!InputUser ? (
+            <InputForm
+              handlePredictionSubmit={handlePredictionSubmit}
+              setParams={setParams}
+              params={params}
+              InfectionRate={InfectionRate}
+              setInputUser={setInputUser}
+            />
+          ) : (
+            <div className="space-y-3">
+              <CompletedAnimation label="Simulation submitted" />
+              <Button full variant="ghost" onClick={() => setInputUser(false)} icon={<Pencil className="h-4 w-4" />}>
+                Edit parameters
+              </Button>
             </div>
-          )}
-
-          {/* Completed Box */}
-          {InputUser && (
-            <div className="rounded overflow-hidden w-[250px] h-[250px] relative shadow-xl">
-              <div
-                className="absolute inset-0 bg-cover bg-center"
-                style={{
-                  backgroundImage:
-                    "url('https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRXert6ekqTL1J7LVWNAhs65_GeostayFqh6A&s')",
-                }}
-              />
-              <div
-                className={`absolute inset-0 flex items-center justify-center backdrop-blur-md ${
-                  theme === 'dark' ? 'bg-black/40' : 'bg-white/40'
-                }`}
-              >
-                {InfectionRate == null ? <Processing /> : <CompletedAnimation />}
-              </div>
-            </div>
-          )}
-        </>
-      )}
-    </div>
+          ))}
+      </Step>
+    </ol>
   )
 }
 

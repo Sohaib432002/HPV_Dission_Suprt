@@ -1,10 +1,7 @@
+import { Spinner } from '../ui'
 
-const Spinner = () => {
-  return (
-    <div className="flex items-center justify-center ">
-      <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-    </div>
-  )
-}
+const Processing = ({ label = 'Processing…' }: { label?: string }) => (
+  <Spinner label={label} className="py-6" />
+)
 
-export default Spinner
+export default Processing

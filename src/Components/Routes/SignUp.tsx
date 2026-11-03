@@ -1,8 +1,29 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
+import type { ChangeEvent, FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { useTheme } from '../ThemeContext'
+import { FlaskConical, TriangleAlert, UserRound } from 'lucide-react'
+import { AuthShell } from '../ui/AuthShell'
+import { PasswordInput } from '../ui/PasswordInput'
+import { Button, Field, Input, Select, useToast } from '../ui'
+import { apiFetch } from '../../lib/api'
+
+const roles = [
+  { value: 'patient', label: 'Patient', icon: UserRound, hint: 'View your reports' },
+  { value: 'lab_engineer', label: 'Engineer', icon: FlaskConical, hint: 'Run simulations' },
+]
+
+/** Flatten DRF error payloads ({field: [msg]} or {detail}) into one readable line. */
+function readError(result: Record<string, unknown>) {
+  if (typeof result.detail === 'string') return result.detail
+  const first = Object.entries(result)[0]
+  if (!first) return 'Signup failed'
+  const [field, msg] = first
+  return `${field}: ${Array.isArray(msg) ? msg[0] : String(msg)}`
+}
 
 const Signup = () => {
+  const navigate = useNavigate()
+  const toast = useToast()
   const [form, setForm] = useState({
     username: '',
     email: '',
@@ -11,177 +32,150 @@ const Signup = () => {
     age: 0,
     gender: 'unknown',
   })
-
   const [loading, setLoading] = useState(false)
-  const navigate = useNavigate()
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    setForm({ ...form, [e.target.name]: e.target.value })
+  const [error, setError] = useState('')
+
+  const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target
+    // Patients must pick a gender explicitly; engineers keep the backend-friendly default.
+    if (name === 'role') {
+      setForm({ ...form, role: value, gender: value === 'patient' ? '' : 'unknown' })
+      return
+    }
+    setForm({ ...form, [name]: value })
   }
-  const { theme } = useTheme()
-  // Form submit
-  const handleSubmit = async (e: React.FormEvent) => {
+
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
-    setLoading(true)
+    setError('')
 
     const passwordRegex = /^(?=.*[A-Z])(?=.*[!@#$%^&*])/
     if (!passwordRegex.test(form.password)) {
-      alert('Password must contain an uppercase letter and a special character')
-      setLoading(false)
+      setError('Password must contain an uppercase letter and a special character')
+      return
+    }
+    if (!form.role) {
+      setError('Please choose a role')
       return
     }
 
+    setLoading(true)
     try {
-      const response = await fetch(
-        'https://sohaib432002-hpv-dsion-support.hf.space/api/auth/signup/',
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(form),
-        }
-      )
-
+      const response = await apiFetch('/api/auth/signup/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      })
       const result = await response.json()
 
       if (response.ok) {
+        toast.success('Account created. Please log in.')
         navigate('/Login')
       } else {
-        alert(result.detail || 'Signup failed')
+        setError(readError(result))
       }
-    } catch (error) {
-      console.error(error)
-      alert('Server error')
+    } catch (err) {
+      console.error(err)
+      setError('Server error. Please try again.')
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div className="relative min-h-screen flex items-center justify-center bg-gradient-to-r from-blue-800 via-blue-900 to-indigo-900 overflow-hidden">
-      <div className=" inset-0">
-        {/* BACKGROUND IMAGE */}
-        {theme === 'dark' ? (
+    <AuthShell
+      title="Create your account"
+      subtitle="Join the lab to run simulations, analyze images and manage reports."
+      footer={
+        <>
+          Already have an account?{' '}
+          <Link to="/Login" className="font-semibold text-brand hover:underline">
+            Log in
+          </Link>
+        </>
+      }
+    >
+      <form onSubmit={handleSubmit} className="space-y-5">
+        {error && (
           <div
-            className="absolute inset-0 bg-cover bg-center filter blur-xl opacity-80"
-            style={{
-              backgroundImage:
-                "url('https://thumbs.dreamstime.com/b/hand-analyzing-stock-data-ai-generated-image-holding-pen-financial-digital-screen-displaying-various-market-graphs-380385728.jpg')",
-            }}
-          ></div>
-        ) : (
-          <div
-            className="absolute inset-0 bg-cover bg-center filter blur-xl opacity-80"
-            style={{
-              backgroundImage:
-                "url('https://www.shutterstock.com/image-photo/forex-market-graph-hologram-personal-600nw-2489218761.jpg')",
-            }}
-          ></div>
+            role="alert"
+            className="flex items-start gap-2.5 rounded-xl bg-danger-soft p-3.5 text-sm text-danger"
+          >
+            <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+            {error}
+          </div>
         )}
-        <div
-          className={`relative z-10 ${theme === 'dark' ? 'bg-white/10' : 'bg-black/50'}  backdrop-blur-lg border border-blue-300 rounded p-8 md:p-12 w-full max-w-md shadow-xl`}
-        >
-          {' '}
-          <h1 className="text-3xl font-bold text-white text-center mb-6">Create Account</h1>
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            <input
-              type="text"
-              name="username"
-              value={form.username}
-              onChange={handleChange}
-              placeholder="Full Name"
-              className="input-style"
-              required
-            />
 
-            <input
-              type="email"
-              name="email"
-              value={form.email}
-              onChange={handleChange}
-              placeholder="Email Address"
-              className="input-style"
-              required
-            />
-
-            <select
-              name="role"
-              value={form.role}
-              onChange={handleChange}
-              className="input-style text-white"
-              required
-            >
-              <option value="" className="text-black">
-                Select Role
-              </option>
-              <option value="lab_engineer" className="text-black">
-                Engineer
-              </option>
-              <option value="patient" className="text-black">
-                Patient
-              </option>
-            </select>
-
-            {form.role === 'patient' && (
-              <>
+        <fieldset>
+          <legend className="mb-1.5 text-sm font-medium text-ink-2">I am a</legend>
+          <div className="grid grid-cols-2 gap-3">
+            {roles.map((r) => (
+              <label
+                key={r.value}
+                className="relative flex cursor-pointer items-center gap-3 rounded-xl border border-line bg-surface p-3.5 transition-colors has-[:checked]:border-brand has-[:checked]:bg-brand-soft has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-brand/40"
+              >
                 <input
-                  type="number"
-                  name="age"
-                  value={form.age}
+                  type="radio"
+                  name="role"
+                  value={r.value}
+                  checked={form.role === r.value}
                   onChange={handleChange}
-                  placeholder="Enter Your Age"
-                  className="input-style"
+                  className="sr-only"
                   required
                 />
+                <r.icon className="h-5 w-5 shrink-0 text-brand" aria-hidden />
+                <span>
+                  <span className="block text-sm font-semibold text-ink">{r.label}</span>
+                  <span className="block text-xs text-muted">{r.hint}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
 
-                <select
-                  name="gender"
-                  value={form.gender}
-                  onChange={handleChange}
-                  className="input-style text-white"
-                  required
-                >
-                  <option value="" className="text-black">
-                    Select Gender
-                  </option>
-                  <option value="Male" className="text-black">
-                    Male
-                  </option>
-                  <option value="Female" className="text-black">
-                    Female
-                  </option>
-                </select>
-              </>
-            )}
+        <Field label="Full name">
+          {(id) => (
+            <Input id={id} name="username" autoComplete="username" value={form.username} onChange={handleChange} required />
+          )}
+        </Field>
+        <Field label="Email address">
+          {(id) => (
+            <Input id={id} type="email" name="email" autoComplete="email" value={form.email} onChange={handleChange} required />
+          )}
+        </Field>
 
-            <input
-              type="password"
-              name="password"
-              value={form.password}
-              onChange={handleChange}
-              placeholder="Password"
-              className="input-style"
-              required
-            />
-            <p className="text-sm text-gray-400">
-              Password must include uppercase letter & special character
-            </p>
+        {form.role === 'patient' && (
+          <div className="grid gap-5 sm:grid-cols-2">
+            <Field label="Age">
+              {(id) => (
+                <Input id={id} type="number" name="age" min={0} max={120} value={form.age} onChange={handleChange} required />
+              )}
+            </Field>
+            <Field label="Gender">
+              {(id) => (
+                <Select id={id} name="gender" value={form.gender} onChange={handleChange} required>
+                  <option value="" disabled>
+                    Select gender
+                  </option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                </Select>
+              )}
+            </Field>
+          </div>
+        )}
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="mt-4 bg-gradient-to-r from-blue-500 to-indigo-500 text-white py-3 rounded font-semibold shadow-lg"
-            >
-              {loading ? 'Signing up...' : 'Sign Up'}
-            </button>
-          </form>
-          <p className="text-blue-200 text-center mt-6 text-sm">
-            Already have an account?{' '}
-            <Link to="/Login" className="text-white font-semibold underline">
-              Login
-            </Link>
-          </p>
-        </div>
-      </div>
-    </div>
+        <Field label="Password" hint="Must include an uppercase letter and a special character (!@#$%^&*).">
+          {(id) => (
+            <PasswordInput id={id} name="password" autoComplete="new-password" value={form.password} onChange={handleChange} required />
+          )}
+        </Field>
+
+        <Button type="submit" size="lg" full loading={loading}>
+          {loading ? 'Creating account…' : 'Create account'}
+        </Button>
+      </form>
+    </AuthShell>
   )
 }
 

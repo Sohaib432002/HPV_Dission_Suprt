@@ -1,22 +1,35 @@
-import { Outlet } from 'react-router-dom'
+import { Suspense, useEffect } from 'react'
+import { Spinner } from '../ui'
+import { Outlet, useLocation } from 'react-router-dom'
 import Navbar from '../Navbar'
-import { useTheme } from '../ThemeContext'
+import Footer from '../Footer'
+import { ErrorBoundary } from './ErrorBountry'
 
 export default function Layout() {
-  const { theme } = useTheme()
-  return (
-    <div
-      className={`min-h-screen transition-all duration-700 ${
-        theme === 'dark'
-          ? 'bg-gradient-to-r from-blue-900 via-purple-900 to-indigo-800'
-          : 'bg-gradient-to-r from-green-400 via-emerald-400 to-teal-400'
-      }`}
-    >
-      <Navbar />
+  const { pathname } = useLocation()
 
-      <main className="pt-13">
-        <Outlet />
+  // Start every page at the top when navigating.
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [pathname])
+
+  return (
+    <div className="flex min-h-screen flex-col bg-bg text-ink">
+      <a
+        href="#main"
+        className="sr-only z-[90] rounded-lg bg-brand px-4 py-2 font-semibold text-brand-fg focus:not-sr-only focus:fixed focus:left-4 focus:top-4"
+      >
+        Skip to content
+      </a>
+      <Navbar />
+      <main id="main" className="flex-1">
+        <ErrorBoundary key={pathname}>
+          <Suspense fallback={<Spinner label="Loading…" className="min-h-[60vh]" />}>
+            <Outlet />
+          </Suspense>
+        </ErrorBoundary>
       </main>
+      <Footer />
     </div>
   )
 }

@@ -1,16 +1,21 @@
-import Home from './Components/Routes/home'
-import About from './Components/Routes/about'
-import AppSimulation from './Components/Routes/AppSimulation'
-import Contact from './Components/Routes/Contact'
-import FuturePredict from './Components/Routes/FuturePredict'
-import SignUp from './Components/Routes/SignUp'
-import Login from './Components/Routes/Login'
-import PatientProfile from './Components/Routes/PatientProfile'
-import LabEngProfile from './Components/Routes/LabEngProfile'
-import Layout from './Components/Routes/Layout'
-import ErrorBoundary from './Components/Routes/ErrorBountry'
+import { lazy } from 'react'
 import { Routes, Route } from 'react-router-dom'
+import Layout from './Components/Routes/Layout'
+import Home from './Components/Routes/home'
+import NotFound from './Components/Routes/ErrorBountry'
 import './index.css'
+
+// Heavy / authenticated pages load on demand (charts, PDF tooling, ML flow).
+// Layout wraps the <Outlet /> in <Suspense>, so the navbar stays put while they load.
+const About = lazy(() => import('./Components/Routes/about'))
+const Contact = lazy(() => import('./Components/Routes/Contact'))
+const AppSimulation = lazy(() => import('./Components/Routes/AppSimulation'))
+const FuturePredict = lazy(() => import('./Components/Routes/FuturePredict'))
+const SignUp = lazy(() => import('./Components/Routes/SignUp'))
+const Login = lazy(() => import('./Components/Routes/Login'))
+const PatientProfile = lazy(() => import('./Components/Routes/PatientProfile'))
+const LabEngProfile = lazy(() => import('./Components/Routes/LabEngProfile'))
+
 export default function App() {
   return (
     <Routes>
@@ -24,7 +29,7 @@ export default function App() {
         <Route path="Login" element={<Login />} />
         <Route path="PatientProfile" element={<PatientProfile />} />
         <Route path="LabEngProfile" element={<LabEngProfile />} />
-        <Route path="*" element={<ErrorBoundary />} />
+        <Route path="*" element={<NotFound />} />
       </Route>
     </Routes>
   )

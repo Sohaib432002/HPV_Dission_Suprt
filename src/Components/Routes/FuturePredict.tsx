@@ -1,10 +1,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
+import { ImagePlus, LineChart, UploadCloud, X } from 'lucide-react'
 import ResultDashboard from './ResultDashboard'
 import FlowChart from './FlowChart'
 import SimulationChart from './Graph'
-import { jwtDecode } from 'jwt-decode'
-import { useTheme } from '../ThemeContext'
+import { Button, Card, CardHeader, Container, EmptyState, Field, Input, Modal, PageHeader, Spinner, useToast } from '../ui'
+import { apiFetch } from '../../lib/api'
+import { useAuth } from '../../lib/auth'
 
 type FormParams = {
   recruitment_rate: number | ''
@@ -17,6 +19,9 @@ type FormParams = {
 }
 
 const FuturePredict = () => {
+  const toast = useToast()
+  const { user: User } = useAuth()
+
   const [images, setImages] = useState<File[]>([])
   const [previewUrls, setPreviewUrls] = useState<string[]>([])
   const [results, setResults] = useState<any>(null)
@@ -27,15 +32,11 @@ const FuturePredict = () => {
   const [PredictionParameters, setPredictionParameters] = useState<any>(null)
   const [showGraph, setshowGraph] = useState<boolean>(false)
   const [loading, setloading] = useState<boolean>(false)
-  // eslint-disable-next-line @typescript-eslint/no-wrapper-object-types
-  const [Model, setModel] = useState<Boolean>(false)
-  const [User, setUser] = useState<any>(null)
+  const [uploading, setUploading] = useState<boolean>(false)
+  const [dragging, setDragging] = useState<boolean>(false)
+  const [Model, setModel] = useState<boolean>(false)
   const [pendingAction, setPendingAction] = useState<string | null>(null)
-  const [PatientDetails, setPatientDetails] = useState<any>({
-    Name: '',
-    Age: 0,
-    Gender: '',
-  })
+  const [PatientDetails, setPatientDetails] = useState<any>({ Name: '', Age: 0, Gender: '' })
   const [params, setParams] = useState<FormParams>({
     recruitment_rate: 50,
     natural_death_rate: 0.014,
@@ -45,92 +46,94 @@ const FuturePredict = () => {
     cancer_progression_rate: 0.003,
     stepSize: 1,
   })
-  useEffect(() => {
-    const token = localStorage.getItem('access')
-    if (token) {
-      const decoded: any = jwtDecode(token)
-      setUser(decoded)
-      console.log('object', decoded)
-    }
+
+  const setFiles = useCallback((files: File[]) => {
+    setImages(files)
+    setPreviewUrls(files.map((file) => URL.createObjectURL(file)))
   }, [])
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files) return
-    const filesArray = Array.from(e.target.files)
-    setImages(filesArray)
-    const urls = filesArray.map((file) => URL.createObjectURL(file))
-    setPreviewUrls(urls)
+    setFiles(Array.from(e.target.files))
   }
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    setDragging(false)
+    const dropped = Array.from(e.dataTransfer.files).filter((f) => f.type.startsWith('image/'))
+    if (dropped.length) setFiles(dropped)
+  }
+
+  const removeImage = (index: number) => setFiles(images.filter((_, i) => i !== index))
+
   const runUpload = async () => {
     const formData = new FormData()
     images.forEach((img) => formData.append('images', img))
     setForm(formData)
+    setUploading(true)
 
     try {
-      const response = await fetch(
-        'https://sohaib432002-hpv-dsion-support.hf.space/simulation/real_prediction',
-        {
-          method: 'POST',
-          body: formData,
-        }
-      )
+      const response = await apiFetch('/simulation/real_prediction', {
+        method: 'POST',
+        body: formData,
+      })
       const data = await response.json()
       setResults(data)
     } catch {
-      alert('Image upload failed')
+      toast.error('Image upload failed. Please try again.')
+    } finally {
+      setUploading(false)
     }
   }
-  const handleSubmit = async () => {
-    if (images.length === 0) return alert('Please upload at least one image')
+
+  const handleSubmit = () => {
+    if (images.length === 0) return toast.error('Please upload at least one image')
     if (User?.role === 'lab_engineer') {
-      setPendingAction('upload') // mark action
+      setPendingAction('upload') // collect patient details first
       setModel(true)
       return
     }
     runUpload()
-    const formData = new FormData()
-    images.forEach((img) => formData.append('images', img))
-    setForm(formData)
   }
+
   useEffect(() => {
     return () => previewUrls.forEach((url) => URL.revokeObjectURL(url))
   }, [previewUrls])
+
   useEffect(() => {
     if (!results || !form) return
 
     const handleResults = async () => {
       try {
-        const response = await fetch(
-          'https://sohaib432002-hpv-dsion-support.hf.space/simulation/ApplyModel',
-          {
-            method: 'POST',
-            body: form,
-          }
-        )
+        const response = await apiFetch('/simulation/ApplyModel', {
+          method: 'POST',
+          body: form,
+        })
         const data = await response.json()
         setMainResult(data)
         setInfectionRate(data.total_infected_cells / data.total_cells)
       } catch {
-        alert('Prediction failed')
+        toast.error('Prediction failed. Please try again.')
       }
     }
 
     handleResults()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [results, form])
-  const handlePatiendDetails = (e: any) => {
+
+  const handlePatiendDetails = (e: React.FormEvent) => {
     e.preventDefault()
     setModel(false)
-
-    if (pendingAction === 'upload') {
-      runUpload()
-    }
+    if (pendingAction === 'upload') runUpload()
   }
+
   const handlePredictionSubmit = async () => {
     const payload = { ...params, transmission_rate: infectionRate }
     setloading(true)
     setshowGraph(true)
 
     try {
-      const response = await fetch('https://sohaib432002-hpv-dsion-support.hf.space/simulation/', {
+      const response = await apiFetch('/simulation/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -138,305 +141,183 @@ const FuturePredict = () => {
       const data = await response.json()
       setPredictionParameters(data)
     } catch {
-      alert('Prediction failed')
+      toast.error('Prediction failed. Please try again.')
     } finally {
       setloading(false)
     }
   }
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  
-  if (pendingAction === 'simulation') {
-    handlePredictionSubmit()
-  }
-  const { theme } = useTheme()
+
   return (
-    <div className="relative min-h-screen bg-[radial-gradient(circle,#2846d8,transparent)] flex flex-col items-center justify-start py-8 px-4 md:px-8 lg:px-16 overflow-x-hidden">
-      {Model && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-black/40 transition-all duration-500">
-          <div
-            className={`w-full max-w-lg p-6 md:p-8 rounded-2xl shadow-2xl border transition-all duration-500 ${
-              theme === 'dark'
-                ? 'bg-white/10 border-white/20 text-white'
-                : 'bg-white/90 border-gray-200 text-gray-900'
-            }`}
-          >
-            <form onSubmit={handlePatiendDetails}>
-              <h2
-                className={`text-2xl md:text-3xl font-extrabold mb-6 text-center ${
-                  theme === 'dark' ? 'text-cyan-300' : 'text-blue-600'
-                }`}
-              >
-                Patient Information
-              </h2>
+    <Container className="space-y-8 py-10 sm:py-12">
+      <PageHeader
+        title="Future prediction from infected images"
+        description="Upload infected cell images and our machine learning model will analyze them to generate future infection predictions."
+      />
 
-              {/* Name */}
-              <div className="mb-4">
-                <label
-                  className={`block mb-1 font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}
-                >
-                  Patient Name
-                </label>
-                <input
-                  type="text"
-                  onChange={(e) => setPatientDetails({ ...PatientDetails, Name: e.target.value })}
-                  placeholder="Enter name"
-                  className={`w-full px-3 py-2 rounded-lg outline-none transition ${
-                    theme === 'dark'
-                      ? 'bg-white/10 border border-white/20 text-white focus:ring-2 focus:ring-cyan-400'
-                      : 'bg-white border border-gray-300 focus:ring-2 focus:ring-blue-400'
-                  }`}
-                />
-              </div>
+      {!results ? (
+        <Card className="mx-auto max-w-3xl">
+          <div className="p-5 sm:p-8">
+            <label
+              onDragOver={(e) => {
+                e.preventDefault()
+                setDragging(true)
+              }}
+              onDragLeave={() => setDragging(false)}
+              onDrop={handleDrop}
+              className={`flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed px-6 py-12 text-center transition-colors focus-within:ring-2 focus-within:ring-brand/40 ${
+                dragging ? 'border-brand bg-brand-soft' : 'border-line hover:border-brand hover:bg-surface-2'
+              }`}
+            >
+              <span className="grid h-14 w-14 place-items-center rounded-2xl bg-brand-soft text-brand">
+                <UploadCloud className="h-7 w-7" aria-hidden />
+              </span>
+              <span className="mt-4 text-base font-semibold text-ink">Click or drag images here</span>
+              <span className="mt-1 text-sm text-muted">PNG or JPG — multiple images supported</span>
+              <input type="file" multiple accept="image/*" onChange={handleFileChange} className="sr-only" />
+            </label>
 
-              {/* Age */}
-              <div className="mb-4">
-                <label
-                  className={`block mb-1 font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}
-                >
-                  Age
-                </label>
-                <input
-                  type="number"
-                  onChange={(e) => setPatientDetails({ ...PatientDetails, Age: e.target.value })}
-                  placeholder="Enter age"
-                  className={`w-full px-3 py-2 rounded-lg outline-none transition ${
-                    theme === 'dark'
-                      ? 'bg-white/10 border border-white/20 text-white focus:ring-2 focus:ring-cyan-400'
-                      : 'bg-white border border-gray-300 focus:ring-2 focus:ring-blue-400'
-                  }`}
-                />
-              </div>
-
-              {/* Gender */}
-              <div className="mb-6">
-                <label
-                  className={`block mb-2 font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}
-                >
-                  Gender
-                </label>
-
-                <div className="flex gap-6">
-                  {['male', 'female'].map((g) => (
-                    <label
-                      key={g}
-                      className={`flex items-center gap-2 cursor-pointer px-4 py-2 rounded-lg transition ${
-                        theme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-gray-100'
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="gender"
-                        value={g}
-                        onChange={(e) =>
-                          setPatientDetails({ ...PatientDetails, Gender: e.target.value })
-                        }
-                        className="accent-cyan-500"
-                      />
-                      <span className="capitalize">{g}</span>
-                    </label>
+            {previewUrls.length > 0 && (
+              <div className="mt-8">
+                <h2 className="text-sm font-bold text-ink">
+                  Image preview <span className="font-medium text-muted">({previewUrls.length})</span>
+                </h2>
+                <ul className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+                  {previewUrls.map((url, idx) => (
+                    <li key={url} className="group relative aspect-square overflow-hidden rounded-xl border border-line">
+                      <img src={url} alt={`Selected image ${idx + 1}`} className="h-full w-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => removeImage(idx)}
+                        aria-label={`Remove image ${idx + 1}`}
+                        className="absolute right-1.5 top-1.5 grid h-7 w-7 place-items-center rounded-full bg-black/60 text-white opacity-100 transition-opacity hover:bg-black/80 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </li>
                   ))}
-                </div>
-              </div>
-
-              {/* Button */}
-              <button
-                type="submit"
-                className={`w-full py-3 rounded-xl font-semibold text-white transition-all duration-300 ${
-                  theme === 'dark'
-                    ? 'bg-gradient-to-r from-cyan-500 to-blue-600 hover:scale-105 shadow-lg'
-                    : 'bg-gradient-to-r from-blue-500 to-indigo-500 hover:scale-105 shadow-md'
-                }`}
-              >
-                Submit
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
-      {!results && (
-        <div
-          className={`backdrop-blur-xl shadow-2xl rounded p-6 md:p-8 w-full max-w-3xl border transition-all duration-500 ${
-            theme === 'dark'
-              ? 'bg-white/10 border-white/20 text-white'
-              : 'bg-white/80 border-gray-200 text-gray-900'
-          }`}
-        >
-          {/* Header */}
-          <div className="text-center mb-6">
-            <h1
-              className={`text-2xl md:text-3xl font-extrabold tracking-tight ${
-                theme === 'dark' ? 'text-cyan-300' : 'text-cyan-600'
-              }`}
-            >
-              Future Prediction Using Infected Images
-            </h1>
-            <p
-              className={`mt-2 text-sm md:text-base ${
-                theme === 'dark' ? 'text-gray-300' : 'text-gray-600'
-              }`}
-            >
-              Upload infected cell images and our machine learning model will analyze them to
-              generate future infection predictions.
-            </p>
-          </div>
-
-          {/* Upload Area */}
-          <label
-            className={`flex flex-col items-center justify-center border-2 border-dashed rounded p-6 md:p-8 cursor-pointer transition-all duration-300 ${
-              theme === 'dark'
-                ? 'border-cyan-400 hover:bg-white/10'
-                : 'border-cyan-500 hover:bg-cyan-50'
-            }`}
-          >
-            <span className="text-cyan-500 font-semibold text-center">
-              Click or Drag Images Here
-            </span>
-            <span
-              className={`text-xs md:text-sm mt-1 ${
-                theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
-              }`}
-            >
-              Multiple images supported
-            </span>
-
-            <input
-              type="file"
-              multiple
-              accept="image/*"
-              onChange={handleFileChange}
-              className="hidden"
-            />
-          </label>
-
-          {/* Preview */}
-          {previewUrls.length > 0 && (
-            <div className="mt-6">
-              <h3
-                className={`text-lg font-semibold mb-3 ${
-                  theme === 'dark' ? 'text-gray-200' : 'text-gray-700'
-                }`}
-              >
-                Image Preview
-              </h3>
-
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                {previewUrls.map((url, idx) => (
-                  <div
-                    key={idx}
-                    className="relative group overflow-hidden rounded shadow-md h-28 sm:h-32 md:h-36"
-                  >
-                    <img
-                      src={url}
-                      alt={`preview-${idx}`}
-                      className="w-full h-full object-cover transition duration-300 group-hover:scale-110"
-                    />
-
-                    {/* Overlay Effect */}
-                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition flex items-center justify-center opacity-0 group-hover:opacity-100">
-                      <span className="text-white text-xs">Preview</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Button */}
-          <button
-            type="button"
-            onClick={handleSubmit}
-            className={`mt-6 md:mt-8 w-full py-3 rounded font-semibold text-white shadow-lg transition-all duration-300 ${
-              theme === 'dark'
-                ? 'bg-gradient-to-r from-cyan-500 to-blue-600 hover:scale-105'
-                : 'bg-gradient-to-r from-cyan-500 to-teal-500 hover:scale-105'
-            }`}
-          >
-            Upload Images & Run Prediction
-          </button>
-        </div>
-      )}
-
-      {/* Results Section */}
-      {results && (
-        <div className="w-full flex flex-col lg:flex-row mt-8 gap-6">
-          {/* FlowChart & Dashboard */}
-          <div
-            className={`flex-1 backdrop-blur-xl shadow-2xl rounded p-4 md:p-6 border transition-all duration-500 ${
-              theme === 'dark'
-                ? 'bg-[radial-gradient(circle,#1e3a8a,transparent)] border-white/20 text-white'
-                : 'bg-white/80 border-gray-200 text-gray-900'
-            }`}
-          >
-            <FlowChart
-              showResult={showResult}
-              Result={results}
-              mainResult={mainResult}
-              setshowResult={setShowResult}
-              InfectionRate={infectionRate}
-              params={params}
-              setParams={setParams}
-              handlePredictionSubmit={handlePredictionSubmit}
-            />
-
-            {showResult && mainResult && (
-              <div className="mt-6">
-                <ResultDashboard setshowResult={setShowResult} data={mainResult} />
+                </ul>
               </div>
             )}
-          </div>
 
-          {/* Simulation Graph */}
-          {showGraph && (
-            <div
-              className={`flex-1 backdrop-blur-xl shadow-2xl rounded p-4 md:p-6 flex flex-col w-full border min-h-[450px] transition-all duration-500 ${
-                theme === 'dark'
-                  ? 'bg-white/10 border-white/20 text-white'
-                  : 'bg-white/80 border-gray-200 text-gray-900'
-              }`}
+            <Button
+              size="lg"
+              full
+              className="mt-8"
+              loading={uploading}
+              onClick={handleSubmit}
+              icon={<ImagePlus className="h-5 w-5" />}
             >
-              <h2
-                className={`text-xl md:text-2xl font-bold mb-4 ${
-                  theme === 'dark' ? 'text-cyan-300' : 'text-cyan-600'
-                }`}
-              >
-                Simulation Graph
-              </h2>
-
-              <div className="flex-1 flex items-center justify-center rounded">
-                {loading ? (
-                  <div className="flex flex-col items-center">
-                    <div className="w-10 h-10 md:w-12 md:h-12 border-4 border-cyan-400 border-t-transparent rounded animate-spin mb-3"></div>
-                    <div
-                      className={`text-sm md:text-lg font-bold ${
-                        theme === 'dark' ? 'text-cyan-300' : 'text-cyan-600'
-                      }`}
-                    >
-                      Running Simulation...
-                    </div>
-                  </div>
-                ) : PredictionParameters?.data || PredictionParameters?.future_time ? (
-                  <SimulationChart
-                    mainResult={mainResult}
-                    Limitaions={''}
-                    data={PredictionParameters}
-                    startYear={2026}
-                    PatientDetails={PatientDetails}
-                  />
-                ) : (
-                  <p
-                    className={`text-center text-sm md:text-base ${
-                      theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
-                    }`}
-                  >
-                    Run the simulation to visualize infection dynamics
-                  </p>
-                )}
-              </div>
+              {uploading ? 'Uploading…' : 'Upload images & run prediction'}
+            </Button>
+          </div>
+        </Card>
+      ) : (
+        <div className="grid items-start gap-6 lg:grid-cols-[420px_1fr]">
+          <Card className="lg:sticky lg:top-24">
+            <CardHeader title="Analysis pipeline" description="Follow each stage from image to forecast." />
+            <div className="p-5 sm:p-6">
+              <FlowChart
+                showResult={showResult}
+                Result={results}
+                mainResult={mainResult}
+                setshowResult={setShowResult}
+                InfectionRate={infectionRate}
+                params={params}
+                setParams={setParams}
+                handlePredictionSubmit={handlePredictionSubmit}
+              />
             </div>
-          )}
+          </Card>
+
+          <Card className="min-w-0">
+            <CardHeader title="Simulation graph" description="Projected infection dynamics based on your images." icon={LineChart} />
+            <div className="flex min-h-[460px] items-center justify-center p-4 sm:p-6">
+              {!showGraph ? (
+                <EmptyState
+                  icon={LineChart}
+                  title="Waiting for parameters"
+                  description="Once the image analysis finishes, set the simulation parameters to generate the graph."
+                />
+              ) : loading ? (
+                <Spinner label="Running simulation…" />
+              ) : PredictionParameters?.data || PredictionParameters?.future_time ? (
+                <SimulationChart
+                  mainResult={mainResult}
+                  Limitaions={''}
+                  data={PredictionParameters}
+                  startYear={2026}
+                  PatientDetails={PatientDetails}
+                />
+              ) : (
+                <EmptyState
+                  icon={LineChart}
+                  title="No graph yet"
+                  description="Run the simulation to visualize infection dynamics."
+                />
+              )}
+            </div>
+          </Card>
         </div>
       )}
-    </div>
+
+      {showResult && mainResult && <ResultDashboard setshowResult={setShowResult} data={mainResult} />}
+
+      <Modal
+        open={Model}
+        onClose={() => setModel(false)}
+        title="Patient information"
+        description="These details appear on the generated report."
+      >
+        <form onSubmit={handlePatiendDetails} className="space-y-5">
+          <Field label="Patient name">
+            {(id) => (
+              <Input
+                id={id}
+                placeholder="Enter name"
+                onChange={(e) => setPatientDetails({ ...PatientDetails, Name: e.target.value })}
+              />
+            )}
+          </Field>
+          <Field label="Age">
+            {(id) => (
+              <Input
+                id={id}
+                type="number"
+                min={0}
+                placeholder="Enter age"
+                onChange={(e) => setPatientDetails({ ...PatientDetails, Age: e.target.value })}
+              />
+            )}
+          </Field>
+          <fieldset>
+            <legend className="mb-1.5 text-sm font-medium text-ink-2">Gender</legend>
+            <div className="grid grid-cols-2 gap-3">
+              {['male', 'female'].map((g) => (
+                <label
+                  key={g}
+                  className="flex cursor-pointer items-center gap-2.5 rounded-xl border border-line px-4 py-2.5 text-sm font-medium capitalize text-ink transition-colors has-[:checked]:border-brand has-[:checked]:bg-brand-soft has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-brand/40"
+                >
+                  <input
+                    type="radio"
+                    name="gender"
+                    value={g}
+                    onChange={(e) => setPatientDetails({ ...PatientDetails, Gender: e.target.value })}
+                    className="accent-[var(--brand)]"
+                  />
+                  {g}
+                </label>
+              ))}
+            </div>
+          </fieldset>
+          <div className="flex justify-end gap-3 pt-1">
+            <Button variant="ghost" onClick={() => setModel(false)}>
+              Cancel
+            </Button>
+            <Button type="submit">Submit</Button>
+          </div>
+        </form>
+      </Modal>
+    </Container>
   )
 }
 

@@ -1,5 +1,4 @@
-
-import { createContext, useContext, useState, useEffect } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback } from 'react'
 
 type Theme = 'dark' | 'light'
 
@@ -9,33 +8,33 @@ type ThemeContextType = {
 }
 
 const ThemeContext = createContext<ThemeContextType>({
-  theme: 'dark',
+  theme: 'light',
   toggleTheme: () => {},
 })
 
+function initialTheme(): Theme {
+  try {
+    const saved = localStorage.getItem('theme')
+    if (saved === 'dark' || saved === 'light') return saved
+  } catch {
+    /* storage unavailable */
+  }
+  return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+}
+
 export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
-  const [theme, setTheme] = useState<Theme>('dark')
+  const [theme, setTheme] = useState<Theme>(initialTheme)
 
-  // Load saved theme
   useEffect(() => {
-    const saved = localStorage.getItem('theme') as Theme
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (saved) setTheme(saved)
-  }, [])
-
-  // Apply theme
-  useEffect(() => {
-    if (theme === 'dark') {
-      document.documentElement.classList.add('dark')
-    } else {
-      document.documentElement.classList.remove('dark')
+    document.documentElement.classList.toggle('dark', theme === 'dark')
+    try {
+      localStorage.setItem('theme', theme)
+    } catch {
+      /* storage unavailable */
     }
-    localStorage.setItem('theme', theme)
   }, [theme])
 
-  const toggleTheme = () => {
-    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'))
-  }
+  const toggleTheme = useCallback(() => setTheme((t) => (t === 'dark' ? 'light' : 'dark')), [])
 
   return <ThemeContext.Provider value={{ theme, toggleTheme }}>{children}</ThemeContext.Provider>
 }

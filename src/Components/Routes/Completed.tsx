@@ -1,42 +1,26 @@
-import React, { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 
-const CompletedAnimation: React.FC = () => {
+/** Animated success check used when a pipeline stage finishes. */
+const CompletedAnimation = ({ label = 'Completed' }: { label?: string }) => {
   const [show, setShow] = useState(false)
 
   useEffect(() => {
-    // Animate after component mounts
     const timer = setTimeout(() => setShow(true), 100)
     return () => clearTimeout(timer)
   }, [])
 
   return (
-    <div className="flex flex-col w-[100%] items-center justify-center p-6 bg-white rounded-xl shadow-lg w-64 h-64">
-      <div className="relative w-24 h-24 mb-4">
-        {/* Animated circle */}
-        <div
-          className={`absolute inset-0 rounded border-4 border-cyan-500 transition-transform duration-700 ${
-            show ? 'scale-100' : 'scale-0'
-          }`}
-        />
-        {/* Checkmark */}
-        <svg
-          className={`absolute inset-0 w-24 h-24 text-cyan-500 stroke-2 transition-opacity duration-700 ${
-            show ? 'opacity-100' : 'opacity-0'
-          }`}
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-        >
-          <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      </div>
-      <h2
-        className={`text-lg font-bold text-cyan-600 transition-opacity duration-700 ${
-          show ? 'opacity-100' : 'opacity-0'
+    <div role="status" className="flex flex-col items-center gap-3 py-4">
+      <span
+        className={`grid h-14 w-14 place-items-center rounded-full bg-brand-soft text-brand transition-all duration-500 ${
+          show ? 'scale-100 opacity-100' : 'scale-50 opacity-0'
         }`}
       >
-        Completed!
-      </h2>
+        <svg className="h-7 w-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} aria-hidden>
+          <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </span>
+      <span className="text-sm font-semibold text-ink">{label}</span>
     </div>
   )
 }

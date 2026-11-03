@@ -1,123 +1,152 @@
-import { useTheme } from '../ThemeContext'
+import { useState } from 'react'
+import type { FormEvent } from 'react'
+import { Database, FlaskConical, Handshake, Mail, MapPin, Phone, Send } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
+import { Button, Card, Container, Field, Input, Textarea, useToast } from '../ui'
+
+const topics: { icon: LucideIcon; title: string; text: string }[] = [
+  {
+    icon: Handshake,
+    title: 'Research Collaboration',
+    text: 'We collaborate with universities, medical researchers, epidemiologists, and healthcare professionals to study HPV transmission dynamics and cervical cancer prevention strategies.',
+  },
+  {
+    icon: FlaskConical,
+    title: 'Scientific Support',
+    text: 'Our team provides technical support related to mathematical modeling, disease simulation, and computational analysis of epidemiological data.',
+  },
+  {
+    icon: Database,
+    title: 'Data & Prediction',
+    text: 'Our prediction system analyzes data to forecast HPV infection patterns and potential cervical cancer cases using computational modeling.',
+  },
+]
+
+const details: { icon: LucideIcon; title: string; value: string }[] = [
+  { icon: Mail, title: 'Email address', value: 'research@hpv-lab.org' },
+  { icon: Phone, title: 'Phone', value: '+92 300 1234567' },
+  {
+    icon: MapPin,
+    title: 'Research location',
+    value: 'Department of Biomedical Research\nHealth Science Institute\nPakistan',
+  },
+]
+
+const CONTACT_EMAIL = 'research@hpv-lab.org'
+
 const Contact = () => {
-  const { theme } = useTheme()
+  const toast = useToast()
+  const [form, setForm] = useState({ name: '', email: '', org: '', message: '' })
+
+  const update = (key: keyof typeof form) => (e: { target: { value: string } }) =>
+    setForm((f) => ({ ...f, [key]: e.target.value }))
+
+  // The site has no contact endpoint, so the inquiry opens the visitor's mail app, pre-filled.
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault()
+    const body = `${form.message}\n\n— ${form.name}${form.org ? `, ${form.org}` : ''}\n${form.email}`
+    const subject = `Research inquiry from ${form.name}`
+    window.location.href = `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
+    toast.info('Opening your email app to send the inquiry…')
+  }
 
   return (
-    <div
-      className={` text-white ${
-        theme === 'dark'
-          ? 'bg-gradient-to-br from-blue-900 via-purple-900 to-indigo-900'
-          : 'bg-gray-200'
-      } min-h-screen overflow-hidden transition-colors duration-500`}
-    >
-      {/* HERO SECTION */}
-      <section className="relative py-20 px-6 text-center">
-        <div className="absolute inset-0 bg-gradient-to-r from-cyan-900/30 via-blue-900/20 to-purple-900/30 blur-3xl"></div>
-
-        <h1 className="text-6xl md:text-7xl font-extrabold mb-6 relative">
-          Contact Our{' '}
-          <span className="bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 via-blue-400 to-purple-500">
-            HPV Research Lab
-          </span>
-        </h1>
-
-        <p
-          className={`${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'} max-w-3xl mx-auto text-lg md:text-xl leading-relaxed relative`}
-        >
-          Our research platform focuses on studying the transmission, progression, and prevention of
-          Human Papillomavirus (HPV) and cervical cancer using mathematical models and computational
-          simulation tools.
-        </p>
+    <div>
+      <section className="bg-gradient-to-b from-brand-soft to-bg">
+        <Container className="py-16 text-center sm:py-20">
+          <p className="text-xs font-bold uppercase tracking-[0.14em] text-brand">Contact</p>
+          <h1 className="mx-auto mt-4 max-w-3xl text-4xl font-extrabold text-ink sm:text-5xl">
+            Contact our <span className="text-brand">HPV Research Lab</span>
+          </h1>
+          <p className="mx-auto mt-5 max-w-2xl text-base leading-relaxed text-ink-2 sm:text-lg">
+            Our research platform studies the transmission, progression, and prevention of Human
+            Papillomavirus and cervical cancer using mathematical models and computational
+            simulation tools.
+          </p>
+        </Container>
       </section>
 
-      {/* CONTACT GRID */}
-      <section className="max-w-7xl mx-auto px-6 py-10 grid md:grid-cols-3 gap-10">
-        {[
-          {
-            title: 'Research Collaboration',
-            text: 'We collaborate with universities, medical researchers, epidemiologists, and healthcare professionals to study HPV transmission dynamics and cervical cancer prevention strategies.',
-          },
-          {
-            title: 'Scientific Support',
-            text: 'Our team provides technical support related to mathematical modeling, disease simulation, and computational analysis of epidemiological data.',
-          },
-          {
-            title: 'Data & Prediction',
-            text: 'Our prediction system analyzes real-time data to forecast HPV infection patterns and potential cervical cancer cases using computational modeling.',
-          },
-        ].map((item, idx) => (
-          <div
-            key={idx}
-            className={` ${theme === 'dark' ? 'bg-slate-900/60' : 'bg-slate-900'} backdrop-blur-xl p-8 rounded border border-slate-700 transition-transform duration-500`}
-          >
-            <h3 className="text-2xl font-semibold text-cyan-400 mb-4">{item.title}</h3>
-            <p className="text-slate-300 leading-relaxed">{item.text}</p>
-          </div>
-        ))}
-      </section>
-
-      {/* CONTACT FORM + INFO */}
-      <section className="max-w-7xl mx-auto px-6 py-10 grid md:grid-cols-2 gap-16">
-        {/* FORM */}
-        <div
-          className={` ${theme === 'dark' ? 'bg-slate-900/60' : 'bg-slate-900'} backdrop-blur-xl p-10 rounded border border-slate-700 shadow-2xl transition-transform duration-500`}
-        >
-          <h2 className="text-4xl font-bold mb-8 text-cyan-400">Send us a Message</h2>
-          <form className="space-y-6">
-            {['Full Name', 'Email Address', 'Institution / Organization'].map(
-              (placeholder, idx) => (
-                <input
-                  key={idx}
-                  type={placeholder.includes('Email') ? 'email' : 'text'}
-                  placeholder={placeholder}
-                  className="w-full p-4 rounded bg-slate-800 border border-slate-700 focus:border-cyan-400 outline-none transition"
-                />
-              )
-            )}
-            <textarea
-              rows={5}
-              placeholder="Your Message..."
-              className="w-full p-4 rounded bg-slate-800 border border-slate-700 focus:border-cyan-400 outline-none transition"
-            ></textarea>
-            <button className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 py-4 rounded font-semibold transition-transform duration-300">
-              Submit Inquiry
-            </button>
-          </form>
-        </div>
-
-        {/* CONTACT DETAILS */}
-        <div className="space-y-3">
-          {[
-            { title: 'Email Address', value: 'research@hpv-lab.org' },
-            { title: 'Phone', value: '+92 300 1234567' },
-            {
-              title: 'Research Location',
-              value: 'Department of Biomedical Research\nHealth Science Institute\nPakistan',
-            },
-          ].map((item, idx) => (
-            <div
-              key={idx}
-              className={` ${theme === 'dark' ? 'bg-slate-900/60' : 'bg-slate-900'} backdrop-blur-xl p-8 rounded border border-slate-700 transition-transform duration-500`}
-            >
-              <h3 className="text-2xl font-semibold text-cyan-400 mb-3">{item.title}</h3>
-              <p className="text-slate-300 whitespace-pre-line">{item.value}</p>
-            </div>
+      <Container className="py-12 sm:py-16">
+        <div className="grid gap-5 md:grid-cols-3">
+          {topics.map((t) => (
+            <Card key={t.title} className="p-6">
+              <span className="grid h-11 w-11 place-items-center rounded-xl bg-brand-soft text-brand">
+                <t.icon className="h-5 w-5" aria-hidden />
+              </span>
+              <h2 className="mt-4 text-lg font-bold text-ink">{t.title}</h2>
+              <p className="mt-2 text-sm leading-relaxed text-muted">{t.text}</p>
+            </Card>
           ))}
         </div>
-      </section>
 
-      {/* MISSION SECTION */}
-      <section className="bg-[#0f172a] py-24 px-6 text-center">
-        <h2 className="text-4xl md:text-5xl font-extrabold mb-6 bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 via-blue-400 to-purple-500">
-          Join Our Research Mission
-        </h2>
+        <div className="mt-12 grid gap-8 lg:grid-cols-[1.4fr_1fr]">
+          <Card className="p-6 sm:p-8">
+            <h2 className="text-2xl font-extrabold text-ink">Send us a message</h2>
+            <p className="mt-1 text-sm text-muted">We usually respond within a few working days.</p>
+            <form onSubmit={handleSubmit} className="mt-6 space-y-5">
+              <div className="grid gap-5 sm:grid-cols-2">
+                <Field label="Full name">
+                  {(id) => (
+                    <Input id={id} required autoComplete="name" value={form.name} onChange={update('name')} />
+                  )}
+                </Field>
+                <Field label="Email address">
+                  {(id) => (
+                    <Input
+                      id={id}
+                      type="email"
+                      required
+                      autoComplete="email"
+                      value={form.email}
+                      onChange={update('email')}
+                    />
+                  )}
+                </Field>
+              </div>
+              <Field label="Institution / organization">
+                {(id) => (
+                  <Input id={id} autoComplete="organization" value={form.org} onChange={update('org')} />
+                )}
+              </Field>
+              <Field label="Your message">
+                {(id) => (
+                  <Textarea id={id} rows={5} required value={form.message} onChange={update('message')} />
+                )}
+              </Field>
+              <Button type="submit" size="lg" full icon={<Send className="h-4 w-4" />}>
+                Submit inquiry
+              </Button>
+            </form>
+          </Card>
 
-        <p className="text-slate-300 max-w-4xl mx-auto text-lg md:text-xl leading-relaxed">
-          Our mission is to advance scientific understanding of Human Papillomavirus infection and
-          cervical cancer development through mathematical modeling, computational simulation, and
-          predictive analytics. We welcome collaboration from global researchers and healthcare
-          professionals.
-        </p>
+          <div className="space-y-4">
+            {details.map((d) => (
+              <Card key={d.title} className="flex items-start gap-4 p-6">
+                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-brand-soft text-brand">
+                  <d.icon className="h-5 w-5" aria-hidden />
+                </span>
+                <div>
+                  <h3 className="text-sm font-bold text-ink">{d.title}</h3>
+                  <p className="mt-1 whitespace-pre-line text-sm text-muted">{d.value}</p>
+                </div>
+              </Card>
+            ))}
+          </div>
+        </div>
+      </Container>
+
+      <section className="py-4 pb-16">
+        <Container>
+          <div className="rounded-3xl bg-brand-deep px-6 py-12 text-center sm:px-12">
+            <h2 className="text-3xl font-extrabold text-white sm:text-4xl">Join our research mission</h2>
+            <p className="mx-auto mt-4 max-w-3xl leading-relaxed text-white/70">
+              Our mission is to advance scientific understanding of HPV infection and cervical
+              cancer development through mathematical modeling, computational simulation, and
+              predictive analytics. We welcome collaboration from researchers and healthcare
+              professionals worldwide.
+            </p>
+          </div>
+        </Container>
       </section>
     </div>
   )

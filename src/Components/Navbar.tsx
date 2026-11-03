@@ -1,207 +1,162 @@
-/* eslint-disable react-hooks/set-state-in-effect */
-import { useState, useEffect } from 'react'
-import { jwtDecode } from 'jwt-decode'
-import { Link, useNavigate } from 'react-router-dom'
-import { useTheme } from '../Components/ThemeContext'
+import { useEffect, useState } from 'react'
+import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
+import { LogOut, Menu, Moon, Sun, X } from 'lucide-react'
+import { useTheme } from './ThemeContext'
+import { useAuth, clearTokens } from '../lib/auth'
+import { buttonClass } from './ui/buttonStyles'
+import { BrandMark } from './ui/BrandMark'
+
+const linkClass = ({ isActive }: { isActive: boolean }) =>
+  `rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+    isActive ? 'bg-brand-soft text-brand' : 'text-ink-2 hover:bg-surface-2 hover:text-ink'
+  }`
 
 const Navbar = () => {
   const navigate = useNavigate()
-  const [menuOpen, setMenuOpen] = useState(false)
-  const [isAuth, setIsAuth] = useState(false)
-  const [role, setRole] = useState<string | null>(null)
-
+  const { pathname } = useLocation()
   const { theme, toggleTheme } = useTheme()
+  const { isAuth, role } = useAuth()
+  // The drawer is tied to the page it was opened on, so navigating closes it.
+  const [openAt, setOpenAt] = useState<string | null>(null)
+  const menuOpen = openAt === pathname
+  const setMenuOpen = (open: boolean) => setOpenAt(open ? pathname : null)
 
   useEffect(() => {
-    const token = localStorage.getItem('access')
-    setIsAuth(!!token)
-    if (token) {
-      const decoded: { role?: string } = jwtDecode(token)
-      setRole(decoded?.role ?? null)
+    if (!menuOpen) return
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpenAt(null)
+    document.addEventListener('keydown', onKey)
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.body.style.overflow = ''
     }
-  }, [])
+  }, [menuOpen])
 
   const handleLogout = () => {
-    localStorage.removeItem('access')
-    localStorage.removeItem('refresh')
-    setIsAuth(false)
-    navigate('/Login')
+    clearTokens()
     setMenuOpen(false)
+    navigate('/Login')
   }
 
-  const navbarBg =
-    theme === 'dark'
-      ? 'bg-[#0B0F2A] border-[#1F2340] shadow-[0_4px_20px_rgba(103,76,255,0.3)]'
-      : 'bg-white border-gray-200 shadow-lg'
-  const linkColor = theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
+  const links = [
+    { to: '/', label: 'Home', end: true },
+    { to: '/about', label: 'About' },
+    { to: '/contact', label: 'Contact' },
+    ...(isAuth
+      ? [
+          { to: role === 'patient' ? '/PatientProfile' : '/LabEngProfile', label: 'Dashboard' },
+          ...(role !== 'patient' ? [{ to: '/simulation', label: 'Simulation' }] : []),
+          { to: '/future-predict', label: 'Prediction' },
+        ]
+      : []),
+  ]
+
+  const themeButton = (
+    <button
+      type="button"
+      onClick={toggleTheme}
+      aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+      className="grid h-10 w-10 place-items-center rounded-xl border border-line text-ink-2 transition-colors hover:border-brand hover:text-brand"
+    >
+      {theme === 'dark' ? <Sun className="h-[18px] w-[18px]" /> : <Moon className="h-[18px] w-[18px]" />}
+    </button>
+  )
 
   return (
-    <>
-      {/* NAVBAR */}
-      <header
-        className={`w-full fixed top-0 z-50 backdrop-blur-xl border-b ${navbarBg} transition-colors duration-500`}
-      >
-        <div className="max-w-7xl mx-auto flex items-center justify-between px-6 py-3">
-          {/* LOGO */}
-          <div className="flex items-center gap-3 cursor-pointer">
-            <img src="/logo.png" className="w-11 h-11 drop-shadow-lg" />
-            <h1 className="text-xl font-bold tracking-wide bg-gradient-to-r from-indigo-500 via-violet-500 to-purple-600 bg-clip-text text-transparent">
-              HPV Research Lab
-            </h1>
-          </div>
+    <header className="sticky top-0 z-50 border-b border-line bg-surface/85 backdrop-blur-xl">
+      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
+        <Link to="/" className="flex items-center gap-2.5" aria-label="HPV Research Lab home">
+          <BrandMark />
+          <span className="font-display text-lg font-extrabold tracking-tight text-ink">
+            HPV<span className="text-brand"> Research Lab</span>
+          </span>
+        </Link>
 
-          {/* DESKTOP NAV */}
-          <nav className="hidden md:flex">
-            <ul className={`flex gap-8 text-sm font-semibold ${linkColor}`}>
-              {isAuth && (
-                <li className="transition-all">
-                  <Link to={role === 'patient' ? '/PatientProfile' : '/LabEngProfile'}>
-                    Profile
-                  </Link>
-                </li>
-              )}
-              <li className="transition-all">
-                <Link to="/">Home</Link>
-              </li>
-              <li className="transition-all">
-                <Link to="/about">About</Link>
-              </li>
-              <li className="transition-all">
-                <Link to="/contact">Contact</Link>
-              </li>
-            </ul>
-          </nav>
-          <button
-            onClick={toggleTheme}
-            className={`relative w-14 h-8 flex items-center rounded p-1 transition-all duration-300 ${theme === 'dark' ? 'bg-slate-700' : 'bg-gray-300'}`}
-          >
-            <div
-              className={`w-6 h-6 rounded bg-gradient-to-r from-indigo-500 via-violet-500 to-purple-600 shadow-lg transform transition-all duration-300 ${theme === 'dark' ? 'translate-x-6' : 'translate-x-0'}`}
-            />
-          </button>
-          {/* RIGHT BUTTONS */}
-          <div className="hidden md:flex gap-3 items-center">
-            {/* THEME TOGGLE */}
+        <nav aria-label="Primary" className="hidden items-center gap-1 lg:flex">
+          {links.map((l) => (
+            <NavLink key={l.to} to={l.to} end={l.end} className={linkClass}>
+              {l.label}
+            </NavLink>
+          ))}
+        </nav>
 
-            {isAuth ? (
-              <>
-                {role !== 'patient' && (
-                  <Link
-                    to="/simulation"
-                    className="px-5 py-2 rounded text-white font-semibold
-                    bg-gradient-to-r from-indigo-500 via-violet-500 to-purple-600
-                    shadow-md hover:shadow-[0_0_25px_rgba(103,76,255,0.5)] transition-all duration-300"
-                  >
-                    Simulation
-                  </Link>
-                )}
-                <Link
-                  to="/future-predict"
-                  className="px-5 py-2 rounded font-semibold border border-violet-500 text-violet-400
-                  hover:bg-violet-500 hover:text-white transition-all duration-300"
-                >
-                  Prediction
-                </Link>
-                <button
-                  onClick={handleLogout}
-                  className="px-5 py-2 rounded text-white font-semibold bg-gradient-to-r from-red-500 to-pink-500 shadow-md hover:shadow-[0_0_20px_rgba(255,77,77,0.5)] transition-all duration-300"
-                >
-                  Logout
-                </button>
-              </>
-            ) : (
-              <>
-                <Link
-                  to="/Login"
-                  className={`px-5 py-2 rounded font-semibold ${theme === 'dark' ? 'bg-slate-800 text-white' : 'bg-gray-200 text-gray-800'} transition-all duration-300`}
-                >
-                  Login
-                </Link>
-                <Link
-                  to="/SignUp"
-                  className="px-5 py-2 rounded text-white font-semibold
-                  bg-gradient-to-r from-indigo-500 via-violet-500 to-purple-600 shadow-md hover:shadow-[0_0_25px_rgba(103,76,255,0.5)] transition-all duration-300"
-                >
-                  Sign Up
-                </Link>
-              </>
-            )}
-          </div>
-
-          {/* MOBILE HAMBURGER */}
-          <button
-            onClick={() => setMenuOpen(!menuOpen)}
-            className={`md:hidden text-2xl z-50  ${theme === 'dark' ? '  dark:text-slate-200' : 'text-gray-700 text-black'}`}
-          >
-            ☰
-          </button>
-        </div>
-      </header>
-
-      {/* MOBILE MENU */}
-      <div
-        className={`fixed top-0 left-0 h-full w-72 z-40 transition-transform duration-300
-          ${theme === 'dark' ? 'bg-[#0B0F2A]' : 'bg-white text-black'}
-          ${menuOpen ? 'translate-x-0' : '-translate-x-full'}`}
-      >
-        <div className="pt-24 px-6 flex flex-col gap-6">
-          <button
-            onClick={toggleTheme}
-            className="p-3  rounded bg-gradient-to-r from-indigo-500 via-violet-500 to-purple-600 text-white w-full text-center shadow-md"
-          >
-            Toggle Theme
-          </button>
-
-          <Link to="/" onClick={() => setMenuOpen(false)}>
-            Home
-          </Link>
-          <Link to="/about" onClick={() => setMenuOpen(false)}>
-            About
-          </Link>
-          <Link to="/contact" onClick={() => setMenuOpen(false)}>
-            Contact
-          </Link>
-
-          {isAuth && (
-            <Link
-              to={role === 'patient' ? '/PatientProfile' : '/LabEngProfile'}
-              onClick={() => setMenuOpen(false)}
-            >
-              Profile
-            </Link>
-          )}
-
-          {!isAuth ? (
+        <div className="hidden items-center gap-2 lg:flex">
+          {themeButton}
+          {isAuth ? (
+            <button type="button" onClick={handleLogout} className={buttonClass({ variant: 'secondary', size: 'sm' })}>
+              <LogOut className="h-4 w-4" aria-hidden /> Log out
+            </button>
+          ) : (
             <>
-              <Link to="/Login" onClick={() => setMenuOpen(false)}>
-                Login
+              <Link to="/Login" className={buttonClass({ variant: 'ghost', size: 'sm' })}>
+                Log in
               </Link>
-              <Link to="/SignUp" onClick={() => setMenuOpen(false)}>
-                Sign Up
+              <Link to="/SignUp" className={buttonClass({ size: 'sm' })}>
+                Get started
               </Link>
             </>
-          ) : (
-            <button
-              onClick={() => {
-                handleLogout()
-                setMenuOpen(false)
-              }}
-              className="px-5 py-2 rounded text-white font-semibold bg-gradient-to-r from-red-500 to-pink-500 w-full text-center shadow-md"
-            >
-              Logout
-            </button>
           )}
+        </div>
+
+        <div className="flex items-center gap-2 lg:hidden">
+          {themeButton}
+          <button
+            type="button"
+            onClick={() => setMenuOpen(!menuOpen)}
+            aria-expanded={menuOpen}
+            aria-controls="mobile-menu"
+            aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+            className="grid h-10 w-10 place-items-center rounded-xl border border-line text-ink"
+          >
+            {menuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </button>
         </div>
       </div>
 
-      {/* OVERLAY */}
       {menuOpen && (
-        <div
-          onClick={() => setMenuOpen(false)}
-          className="fixed inset-0 bg-black/40 backdrop-blur-sm transition-all duration-300"
-        />
+        <>
+          <div
+            className="fixed inset-x-0 bottom-0 top-16 z-40 bg-black/40 backdrop-blur-sm lg:hidden"
+            onClick={() => setMenuOpen(false)}
+            aria-hidden
+          />
+          <nav
+            id="mobile-menu"
+            aria-label="Mobile"
+            className="animate-rise absolute inset-x-0 top-16 z-50 max-h-[calc(100vh-4rem)] overflow-y-auto border-b border-line bg-surface p-4 shadow-pop lg:hidden"
+          >
+            <div className="flex flex-col gap-1">
+              {links.map((l) => (
+                <NavLink
+                  key={l.to}
+                  to={l.to}
+                  end={l.end}
+                  className={({ isActive }) => `${linkClass({ isActive })} !py-3 !text-base`}
+                >
+                  {l.label}
+                </NavLink>
+              ))}
+            </div>
+            <div className="mt-4 flex flex-col gap-2 border-t border-line pt-4">
+              {isAuth ? (
+                <button type="button" onClick={handleLogout} className={buttonClass({ variant: 'secondary', full: true })}>
+                  <LogOut className="h-4 w-4" aria-hidden /> Log out
+                </button>
+              ) : (
+                <>
+                  <Link to="/SignUp" className={buttonClass({ full: true })}>
+                    Get started
+                  </Link>
+                  <Link to="/Login" className={buttonClass({ variant: 'secondary', full: true })}>
+                    Log in
+                  </Link>
+                </>
+              )}
+            </div>
+          </nav>
+        </>
       )}
-    </>
+    </header>
   )
 }
 

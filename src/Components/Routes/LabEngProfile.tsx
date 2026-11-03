@@ -1,26 +1,31 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-/* eslint-disable react-hooks/set-state-in-effect */
-/* eslint-disable @typescript-eslint/no-unused-vars */
-import  { useState, useEffect } from 'react'
-import { motion } from 'framer-motion'
-import { Activity, Database, Users, BarChart3 } from 'lucide-react'
-import { jwtDecode } from 'jwt-decode'
-import { useTheme } from '../ThemeContext'
-
-interface Report {
-  id: number
-  date: string
-  result: string
-  document: string
-  patient_name?: string
-}
-
-interface DecodedToken {
-  username: string
-  user_id: number
-  age: string
-  gender: string
-}
+import { useMemo, useState } from 'react'
+import {
+  Activity,
+  BarChart3,
+  ExternalLink,
+  FileText,
+  FlaskConical,
+  LogIn,
+  Microscope,
+  Search,
+  TriangleAlert,
+  Users,
+} from 'lucide-react'
+import {
+  Badge,
+  Button,
+  Card,
+  CardHeader,
+  Container,
+  EmptyState,
+  Input,
+  LinkButton,
+  PageHeader,
+  Skeleton,
+  StatCard,
+} from '../ui'
+import { useAuth } from '../../lib/auth'
+import { useReports } from '../../lib/useReports'
 
 interface Patient {
   id: number
@@ -29,210 +34,181 @@ interface Patient {
 }
 
 export default function LabEngineerDashboard() {
+  const { isAuth } = useAuth()
+  const { reports, loading, error, reload } = useReports(isAuth)
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null)
-  const [, setPatient] = useState<DecodedToken | null>(null)
-  const [reports, setReports] = useState<Report[]>([])
-  const [patients, setPatients] = useState<Patient[]>([])
-  const { theme } = useTheme()
+  const [query, setQuery] = useState('')
 
-  const fetchWithRefresh = async (url: string, options: any = {}) => {
-    let token = localStorage.getItem('access')
-    let response = await fetch(url, {
-      ...options,
-      headers: {
-        ...(options.headers || {}),
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
+  // Patients are derived from the report file names (HPV_Report_<name>.pdf).
+  const patients = useMemo(() => {
+    const map: Record<string, Patient> = {}
+    reports.forEach((r) => {
+      const name = r.document.split('/').pop()?.split('_')[2]?.replace(/\.pdf$/i, '') || 'Unknown'
+      if (!map[name]) map[name] = { id: r.id, name, status: 'Analyzed' }
     })
+    return Object.values(map)
+  }, [reports])
 
-    if (response.status === 401) {
-      const refreshToken = localStorage.getItem('refresh')
-      if (!refreshToken) throw new Error('No refresh token found')
-
-      const refreshResponse = await fetch(
-        'https://sohaib432002-hpv-dsion-support.hf.space/api/token/refresh/',
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ refresh: refreshToken }),
-        }
-      )
-
-      if (!refreshResponse.ok) throw new Error('Failed to refresh token')
-
-      const data = await refreshResponse.json()
-      localStorage.setItem('access', data.access)
-      token = data.access
-
-      response = await fetch(url, {
-        ...options,
-        headers: {
-          ...(options.headers || {}),
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      })
-    }
-
-    return response
-  }
-
-  useEffect(() => {
-    const token = localStorage.getItem('access')
-    if (token) {
-      const decoded: DecodedToken = jwtDecode(token)
-      setPatient(decoded)
-    }
-
-    const getReports = async () => {
-      try {
-        const res = await fetchWithRefresh(
-          'https://sohaib432002-hpv-dsion-support.hf.space/api/reports/'
-        )
-        const data: Report[] = await res.json()
-        setReports(data)
-
-        const patientMap: { [name: string]: Patient } = {}
-        data.forEach((r) => {
-          const nameFromDoc = r.document.split('/').pop()?.split('_')[2] || 'Unknown'
-          if (!patientMap[nameFromDoc]) {
-            patientMap[nameFromDoc] = { id: r.id, name: nameFromDoc, status: 'Analyzed' }
-          }
-        })
-        setPatients(Object.values(patientMap))
-      } catch (e) {
-        console.error('Error fetching reports:', e)
-      }
-    }
-
-    getReports()
-  }, [])
+  const visiblePatients = patients.filter((p) => p.name.toLowerCase().includes(query.toLowerCase()))
 
   const selectedReports = selectedPatient
     ? reports.filter((r) => r.document.includes(selectedPatient.name.replace(' ', '_')))
     : []
 
-  // Day/night theme settings
-  const bgGradient =
-    theme === 'dark'
-      ? 'bg-gradient-to-r from-blue-900 via-purple-900 to-indigo-800'
-      : 'bg-gradient-to-r from-blue-400 via-purple-500 to-indigo-400'
-
-  const panelBg = theme === 'dark' ? 'bg-white/10' : 'bg-white/20'
-  const panelBorder = theme === 'dark' ? 'border-white/20' : 'border-gray-200/40'
-  const textColor = theme === 'dark' ? 'text-white' : 'text-gray-900'
-  const subTextColor = theme === 'dark' ? 'text-blue-200' : 'text-gray-700'
-  const hoverBg = theme === 'dark' ? 'hover:bg-white/20' : 'hover:bg-white/30'
+  if (!isAuth) {
+    return (
+      <Container className="py-16">
+        <Card>
+          <EmptyState
+            icon={LogIn}
+            title="Please log in"
+            description="Sign in with a lab engineer account to manage patients and reports."
+            action={<LinkButton to="/Login">Log in</LinkButton>}
+          />
+        </Card>
+      </Container>
+    )
+  }
 
   return (
-    <div className={`min-h-screen p-6 transition-all duration-700 ${bgGradient}`}>
-      <div className="max-w-7xl mx-auto space-y-12">
-        {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: -30 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="text-center"
-        >
-          <h1
-            className={`text-5xl md:text-6xl font-extrabold tracking-tight drop-shadow-lg ${textColor}`}
-          >
-            Lab Engineer Dashboard
-          </h1>
-          <p className={`mt-3 text-lg md:text-xl font-medium ${subTextColor}`}>
-            Manage patients, analyze reports, and track system performance seamlessly
-          </p>
-        </motion.div>
+    <Container className="space-y-8 py-10 sm:py-12">
+      <PageHeader
+        title="Lab engineer dashboard"
+        description="Manage patients, analyze reports, and track system performance."
+        action={
+          <div className="flex flex-wrap gap-3">
+            <LinkButton to="/future-predict" variant="secondary" size="sm">
+              <Microscope className="h-4 w-4" aria-hidden /> New prediction
+            </LinkButton>
+            <LinkButton to="/simulation" size="sm">
+              <FlaskConical className="h-4 w-4" aria-hidden /> Simulation lab
+            </LinkButton>
+          </div>
+        }
+      />
 
-        {/* Stats */}
-        <div className="grid md:grid-cols-3 gap-6">
-          {[
-            { icon: Users, title: 'Total Patients', value: patients.length },
-            { icon: Activity, title: 'Processed Cases', value: reports.length },
-            { icon: BarChart3, title: 'Accuracy', value: '84%' },
-          ].map((stat, idx) => (
-            <motion.div
-              key={idx}
-              whileHover={{ scale: 1.05 }}
-              className={`backdrop-blur-lg ${panelBg} ${panelBorder} rounded-xl p-6 flex flex-col items-center justify-center shadow-lg hover:shadow-xl transition-all duration-300`}
-            >
-              <stat.icon className="w-10 h-10 mb-3 text-cyan-400" />
-              <h3 className="text-lg font-semibold">{stat.title}</h3>
-              <p className="text-3xl font-bold mt-1">{stat.value}</p>
-            </motion.div>
-          ))}
-        </div>
+      <div className="grid gap-4 sm:grid-cols-3">
+        <StatCard label="Total patients" value={loading ? '–' : patients.length} icon={Users} />
+        <StatCard label="Processed cases" value={loading ? '–' : reports.length} icon={Activity} tone="info" />
+        <StatCard label="Accuracy" value="84%" icon={BarChart3} tone="violet" />
+      </div>
 
-        <div className="grid md:grid-cols-2 gap-8">
-          {/* Patient List */}
-          <motion.div
-            initial={{ opacity: 0, x: -30 }}
-            animate={{ opacity: 1, x: 0 }}
-            className={`backdrop-blur-lg ${panelBg} ${panelBorder} rounded-2xl p-6 shadow-inner hover:shadow-lg transition-shadow duration-300`}
-          >
-            <Database className="text-cyan-400 w-10 h-10 mb-4" />
-            <h2 className={`text-2xl font-semibold mb-5 ${textColor}`}>Patient Queue</h2>
-            <div className="space-y-3 max-h-[450px] overflow-y-auto scrollbar-thin scrollbar-thumb-cyan-400 scrollbar-track-white/10">
-              {patients.map((p) => (
-                <div
-                  key={p.id}
-                  onClick={() => setSelectedPatient(p)}
-                  className={`cursor-pointer p-3 rounded-lg transition-colors duration-300 ${
-                    selectedPatient?.id === p.id
-                      ? 'bg-cyan-400/30 text-white'
-                      : `${panelBg} ${hoverBg} ${textColor}`
-                  }`}
-                >
-                  <p className="font-semibold">{p.name}</p>
-                  <p className={`text-sm ${subTextColor}`}>Status: {p.status}</p>
-                </div>
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card className="flex flex-col">
+          <CardHeader
+            title="Patient queue"
+            description={`${patients.length} patient${patients.length === 1 ? '' : 's'} with reports`}
+            icon={Users}
+          />
+          <div className="border-b border-line p-4">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" aria-hidden />
+              <Input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search patients"
+                aria-label="Search patients"
+                className="pl-9"
+              />
+            </div>
+          </div>
+
+          {loading ? (
+            <div className="space-y-2 p-4">
+              {[0, 1, 2, 3].map((i) => (
+                <Skeleton key={i} className="h-14" />
               ))}
             </div>
-          </motion.div>
+          ) : error ? (
+            <EmptyState
+              icon={TriangleAlert}
+              title="Could not load patients"
+              description={error}
+              action={<Button onClick={reload}>Try again</Button>}
+            />
+          ) : visiblePatients.length === 0 ? (
+            <EmptyState
+              icon={Users}
+              title="No patients found"
+              description={patients.length ? 'Try a different search term.' : 'Patients appear here once reports are generated.'}
+            />
+          ) : (
+            <ul className="scrollbar-thin max-h-[440px] divide-y divide-line overflow-y-auto">
+              {visiblePatients.map((p) => {
+                const active = selectedPatient?.id === p.id
+                return (
+                  <li key={p.id}>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedPatient(p)}
+                      aria-pressed={active}
+                      className={`flex w-full items-center justify-between gap-3 px-5 py-3.5 text-left transition-colors ${
+                        active ? 'bg-brand-soft' : 'hover:bg-surface-2'
+                      }`}
+                    >
+                      <div className="flex min-w-0 items-center gap-3">
+                        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-surface-2 text-sm font-bold text-ink-2">
+                          {p.name.slice(0, 2).toUpperCase()}
+                        </span>
+                        <span className="truncate font-semibold text-ink">{p.name}</span>
+                      </div>
+                      <Badge tone="brand">{p.status}</Badge>
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </Card>
 
-          {/* Patient Details */}
-          <motion.div
-            initial={{ opacity: 0, x: 30 }}
-            animate={{ opacity: 1, x: 0 }}
-            className={`backdrop-blur-lg ${panelBg} ${panelBorder} rounded-2xl p-6 shadow-inner hover:shadow-lg transition-shadow duration-300`}
-          >
-            <h2 className={`text-2xl font-semibold mb-5 ${textColor}`}>Patient Details</h2>
-            {selectedPatient ? (
-              <div className="space-y-3">
-                <p>
-                  <span className="font-bold">Name:</span> {selectedPatient.name}
-                </p>
-                <p>
-                  <span className="font-bold">Status:</span> {selectedPatient.status}
-                </p>
-
-                {selectedReports.length > 0 ? (
-                  <div className="mt-5">
-                    <h3 className={`font-semibold mb-3 text-lg ${textColor}`}>Reports:</h3>
-                    <ul className="list-disc pl-5 space-y-2 max-h-72 overflow-y-auto scrollbar-thin scrollbar-thumb-purple-400 scrollbar-track-white/10">
-                      {selectedReports.map((r) => (
-                        <li key={r.id}>
-                          <a
-                            href={r.document}
-                            target="_blank"
-                            className="block w-full py-2 px-3 rounded-lg bg-purple-800 text-purple-200 hover:bg-purple-900 hover:underline transition-all duration-300"
-                          >
-                            {r.result} ({new Date(r.date).toLocaleDateString()}) -- Generate Report
-                          </a>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ) : (
-                  <p className="mt-3 text-blue-200">No reports available</p>
-                )}
+        <Card>
+          <CardHeader title="Patient details" description="Select a patient to review their reports." icon={FileText} />
+          {selectedPatient ? (
+            <div className="p-5 sm:p-6">
+              <div className="flex items-center gap-4">
+                <span className="grid h-14 w-14 place-items-center rounded-2xl bg-brand text-lg font-bold text-brand-fg">
+                  {selectedPatient.name.slice(0, 2).toUpperCase()}
+                </span>
+                <div>
+                  <h3 className="text-lg font-bold text-ink">{selectedPatient.name}</h3>
+                  <Badge tone="brand">{selectedPatient.status}</Badge>
+                </div>
               </div>
-            ) : (
-              <p className="text-blue-200">Select a patient to view details</p>
-            )}
-          </motion.div>
-        </div>
+
+              <h4 className="mt-6 text-sm font-bold text-ink">Reports</h4>
+              {selectedReports.length > 0 ? (
+                <ul className="scrollbar-thin mt-3 max-h-72 space-y-2 overflow-y-auto">
+                  {selectedReports.map((r) => (
+                    <li key={r.id}>
+                      <a
+                        href={r.document}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-center justify-between gap-3 rounded-xl border border-line px-4 py-3 text-sm transition-colors hover:border-brand hover:bg-brand-soft"
+                      >
+                        <span className="min-w-0">
+                          <span className="block truncate font-semibold text-ink">{r.result}</span>
+                          <span className="text-muted">{new Date(r.date).toLocaleDateString()}</span>
+                        </span>
+                        <ExternalLink className="h-4 w-4 shrink-0 text-brand" aria-hidden />
+                        <span className="sr-only">Open report PDF</span>
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-3 text-sm text-muted">No reports available.</p>
+              )}
+            </div>
+          ) : (
+            <EmptyState
+              icon={Users}
+              title="No patient selected"
+              description="Choose a patient from the queue to see their details and reports."
+            />
+          )}
+        </Card>
       </div>
-    </div>
+    </Container>
   )
 }

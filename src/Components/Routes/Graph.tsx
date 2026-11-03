@@ -1,5 +1,4 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-/* eslint-disable react-hooks/set-state-in-effect */
 import {
   LineChart,
   Line,
@@ -10,19 +9,16 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts'
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { Calculator, FileDown, Info, RefreshCw } from 'lucide-react'
 
 import { generateProfessionalPDF } from './Report'
 import { PieChartForPDF, LineChartForPDF } from './PdfCharts'
-import { jwtDecode } from 'jwt-decode'
 import { useTheme } from '../ThemeContext'
+import { Badge, Button, Modal, Spinner, buttonClass, useToast } from '../ui'
 
-interface DecodedUser {
-  username?: string
-  user_id?: string
-  age?: string
-  gender?: string
-}
+import { apiFetch } from '../../lib/api'
+import { getAccessToken, useAuth } from '../../lib/auth'
 
 interface SimulationChartProps {
   mainResult: any
@@ -32,6 +28,26 @@ interface SimulationChartProps {
   PatientDetails: any
 }
 
+type SeriesKey = 'S1' | 'S2' | 'Infected' | 'Recovered' | 'Cancer' | 'Rt'
+
+const SERIES: { key: SeriesKey; label: string; name: string; color: string }[] = [
+  { key: 'S1', label: 'S1 Population', name: 'S1 Population', color: '#3b82f6' },
+  { key: 'S2', label: 'S2 Population', name: 'S2 Population', color: '#10b981' },
+  { key: 'Infected', label: 'Infected', name: 'Infected', color: '#ef4444' },
+  { key: 'Recovered', label: 'Recovered', name: 'Recovered', color: '#8b5cf6' },
+  { key: 'Cancer', label: 'Cancer cases', name: 'Cancer Cases', color: '#64748b' },
+  { key: 'Rt', label: 'Rₜ', name: 'Rₜ (Effective Reproduction Number)', color: '#f59e0b' },
+]
+
+const DEFAULT_VISIBLE: Record<SeriesKey, boolean> = {
+  S1: true,
+  S2: true,
+  Infected: true,
+  Recovered: true,
+  Cancer: true,
+  Rt: false,
+}
+
 const SimulationChart = ({
   mainResult,
   data,
@@ -39,84 +55,68 @@ const SimulationChart = ({
   PatientDetails,
   startYear = 2026,
 }: SimulationChartProps) => {
+  const { theme } = useTheme()
+  const toast = useToast()
+  const { user, isAuth } = useAuth()
+
   const [chartData, setChartData] = useState<any[]>([])
   const [mode, setMode] = useState<'ode' | 'ml'>('ode')
-  const pieChartCanvasRef = useRef<HTMLCanvasElement | any>(null)
-  const lineChartCanvasRef = useRef<HTMLCanvasElement | any>(null)
-  const [S1, setS1] = useState(true)
-  const [S2, setS2] = useState(true)
-  const [Infected, setInfected] = useState(true)
-  const [Recoverd, setRecoverd] = useState(true)
-  const [Cancer, setCancer] = useState(true)
-  const [showR, setshowR] = useState(false)
-  const [showLimitaion, setShowLimitaion] = useState(false)
-  const [CalR, setCal] = useState(false)
-  const [User, setUser] = useState<DecodedUser | null>(null)
-  useEffect(() => {
-    if (Limitaions === '') {
-      setShowLimitaion(false)
-    }
-  }, [Limitaions])
-  const { theme } = useTheme()
-  useEffect(() => {
-    const token = localStorage.getItem('access')
-    if (token) {
-      const decoded: any = jwtDecode(token)
-      setUser(decoded)
-    }
-  }, [])
+  const [visible, setVisible] = useState(DEFAULT_VISIBLE)
+  const [showLimitation, setShowLimitation] = useState(false)
+  const [showR0, setShowR0] = useState(false)
+  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     if (!data) return
     if (data.data) {
       setMode('ode')
       const { time, S1, S2, Infected, Recovered, Cancer, Rt } = data.data
-
-      const formatted = time.map((t: number, i: number) => {
-        const year = startYear + Math.floor(t / 12)
-        return {
-          year,
+      setChartData(
+        time.map((t: number, i: number) => ({
+          year: startYear + Math.floor(t / 12),
           S1: S1[i],
           S2: S2[i],
           Infected: Infected[i],
           Recovered: Recovered[i],
           Cancer: Cancer[i],
           Rt: Rt[i],
-        }
-      })
-
-      setChartData(formatted)
+        }))
+      )
     } else if (data.future_time) {
       setMode('ml')
       const { future_time, ml_prediction } = data
-
-      const formatted = future_time.map((t: number, i: number) => {
-        const year = startYear + Math.floor(t / 12)
-        return {
-          year,
+      setChartData(
+        future_time.map((t: number, i: number) => ({
+          year: startYear + Math.floor(t / 12),
           prediction: ml_prediction[i],
-        }
-      })
-
-      setChartData(formatted)
+        }))
+      )
     }
   }, [data, startYear])
-  if (chartData.length === 0)
-    return (
-      <div className="flex justify-center items-center h-64 text-cyan-400 font-bold">
-        Loading chart...
-      </div>
-    )
+
+  const axis = useMemo(
+    () =>
+      theme === 'dark'
+        ? { text: '#a9bbb2', grid: '#ffffff1a', tipBg: '#101b17', tipBorder: '#22312a', tipText: '#e9f2ee' }
+        : { text: '#52625b', grid: '#0e1f1914', tipBg: '#ffffff', tipBorder: '#e1eae6', tipText: '#0e1f19' },
+    [theme]
+  )
+
+  if (chartData.length === 0) return <Spinner label="Loading chart…" className="h-64" />
+
+  const toggle = (key: SeriesKey) => setVisible((v) => ({ ...v, [key]: !v[key] }))
+
   const handleSubmit = async () => {
+    setSaving(true)
     try {
-      const token: any = localStorage.getItem('access')
-      const decoded: any = jwtDecode(token)
+      const token: any = getAccessToken()
       const pdfBlob: Blob = await generateProfessionalPDF({
         logo_url: '/logo.png',
-        patient_name: User?.username || 'anonyumus',
-        patient_id: User?.user_id || 'Unknown',
-        age: User?.age ? parseInt(User.age, 10) : 0,
-        gender: User?.gender || 'Unknown',
+        patient_name: user?.username || 'anonyumus',
+        // SimpleJWT stores user_id as a number; the PDF writer only accepts strings.
+        patient_id: String(user?.user_id || 'Unknown'),
+        age: user?.age ? parseInt(String(user.age), 10) : 0,
+        gender: user?.gender || 'Unknown',
         overall_infection_rate: mainResult.overall_infection_rate,
         total_cells: mainResult.total_cells,
         total_infected_cells: mainResult.total_infected_cells,
@@ -130,349 +130,209 @@ const SimulationChart = ({
         PatientDetails: PatientDetails,
       })
 
+      const fileName =
+        user?.role === 'lab_engineer'
+          ? `HPV_Report_${PatientDetails?.Name || 'Patient'}.pdf`
+          : `HPV_Report_${user?.username || 'Patient'}.pdf`
+
       const url = window.URL.createObjectURL(pdfBlob)
       const a = document.createElement('a')
       a.href = url
-      if (decoded.role === 'lab_engineer') {
-        a.download = `HPV_Report_${PatientDetails?.Name || 'Patient'}.pdf`
-      } else {
-        a.download = `HPV_Report_${User?.username || 'Patient'}.pdf`
-      }
+      a.download = fileName
       a.click()
       window.URL.revokeObjectURL(url)
 
       const formData = new FormData()
-      if (decoded.role === 'lab_engineer') {
-        formData.append('document', pdfBlob, `HPV_Report_${PatientDetails?.Name || 'Patient'}.pdf`)
-      } else {
-        formData.append('document', pdfBlob, `HPV_Report_${User?.username || 'Patient'}.pdf`)
-      }
+      formData.append('document', pdfBlob, fileName)
       formData.append('result', 'HPV Analysis Completed')
 
-      const response = await fetch(
-        'https://sohaib432002-hpv-dsion-support.hf.space/api/reports/upload/',
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${token}`, // ✅ now correct
-          },
-          body: formData,
-        }
-      )
-
-      const responseData = await response.json()
+      const response = await apiFetch('/api/reports/upload/', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      })
 
       if (response.ok) {
-        alert('✅ PDF Downloaded & Saved Successfully!')
+        toast.success('PDF downloaded and saved successfully.')
       } else {
-        console.error(responseData)
-        alert(' Upload failed!')
+        console.error(await response.json())
+        toast.error('The PDF downloaded, but uploading it failed.')
       }
     } catch (error) {
       console.error(error)
-      alert(' Error occurred!')
+      toast.error('Something went wrong while generating the report.')
+    } finally {
+      setSaving(false)
     }
   }
 
   return (
     <>
-      <div className="w-full">
-        <div className="flex  justify-between my-2">
-          <h2 className="text-2xl font-bold text-center align-middle  text-cyan-400">
-            {mode === 'ml' ? 'ML Prediction Graph' : 'HPV Mathematical Model'}
-          </h2>
-          {mainResult !== null && User !== null ? (
-            <button
-              onClick={handleSubmit}
-              className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-teal-500 text-white font-bold rounded shadow-lg hover:scale-105 transition"
-            >
-              Downloaded & Saved Report
-            </button>
-          ) : null}
-          {mode === 'ml'
-            ? null
-            : Limitaions && (
-                <button
-                  onClick={() => setShowLimitaion(true)}
-                  className="bg-red-500 p-2 cursor-pointer m-b-3 hover:bg-red-700 rounded"
-                >
-                  Limitation in this Method
-                </button>
+      <div className="w-full min-w-0">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <h3 className="text-lg font-bold text-ink">
+              {mode === 'ml' ? 'ML prediction graph' : 'HPV mathematical model'}
+            </h3>
+            <Badge tone="brand">{mode === 'ml' ? 'Machine learning' : 'ODE solver'}</Badge>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {mainResult !== null && isAuth && (
+              <Button size="sm" loading={saving} onClick={handleSubmit} icon={<FileDown className="h-4 w-4" />}>
+                Download &amp; save report
+              </Button>
+            )}
+            {mode !== 'ml' && Limitaions && (
+              <Button size="sm" variant="secondary" onClick={() => setShowLimitation(true)} icon={<Info className="h-4 w-4" />}>
+                Method limitations
+              </Button>
+            )}
+          </div>
+        </div>
+
+        <div className="mt-5">
+          <ResponsiveContainer width="100%" height={380}>
+            <LineChart data={chartData} margin={{ top: 10, right: 20, left: 0, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke={axis.grid} />
+              <XAxis
+                dataKey="year"
+                tick={{ fontSize: 12, fill: axis.text }}
+                stroke={axis.grid}
+                label={{ value: 'Year', position: 'insideBottom', offset: -3, fill: axis.text }}
+              />
+              <YAxis tick={{ fontSize: 12, fill: axis.text }} stroke={axis.grid} />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: axis.tipBg,
+                  border: `1px solid ${axis.tipBorder}`,
+                  borderRadius: 12,
+                  color: axis.tipText,
+                  boxShadow: '0 8px 24px rgb(0 0 0 / 0.15)',
+                }}
+              />
+              <Legend wrapperStyle={{ color: axis.text, fontSize: 13 }} />
+
+              {mode === 'ode' &&
+                SERIES.filter((s) => visible[s.key]).map((s) => (
+                  <Line
+                    key={s.key}
+                    type="monotone"
+                    dataKey={s.key}
+                    stroke={s.color}
+                    name={s.name}
+                    dot={false}
+                    strokeWidth={2.25}
+                  />
+                ))}
+
+              {mode === 'ml' && (
+                <Line
+                  type="monotone"
+                  dataKey="prediction"
+                  stroke="#ef4444"
+                  strokeWidth={3}
+                  name="ML Predicted Infected"
+                  dot={false}
+                />
               )}
+            </LineChart>
+          </ResponsiveContainer>
         </div>
 
-        <ResponsiveContainer width="100%" height={400}>
-          <LineChart data={chartData} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#88888844" />
-            {theme === 'dark' ? (
-              <XAxis
-                dataKey="year"
-                tick={{ fontSize: 12, fill: '#e0e0e0' }}
-                label={{ value: 'Year', position: 'insideBottom', offset: -5, fill: '#c0c0c0' }}
-              />
-            ) : (
-              <XAxis
-                dataKey="year"
-                tick={{ fontSize: 12, fill: 'black' }}
-                label={{ value: 'Year', position: 'insideBottom', offset: -5, fill: '#c0c0c0' }}
-              />
-            )}
-
-            <YAxis tick={{ fill: '#e0e0e0', fontSize: 12 }} />
-            <Tooltip
-              contentStyle={{ backgroundColor: '#1a202c', borderRadius: '8px', color: '#fff' }}
-            />
-            <Legend wrapperStyle={{ color: '#fff', fontWeight: 'bold' }} />
-
-            {mode === 'ode' && (
-              <>
-                {S1 && (
-                  <Line
-                    type="monotone"
-                    dataKey="S1"
-                    stroke="#3b82f6"
-                    name="S1 Population"
-                    dot={false}
-                    strokeWidth={2}
-                  />
-                )}
-                {S2 && (
-                  <Line
-                    type="monotone"
-                    dataKey="S2"
-                    stroke="#10b981"
-                    name="S2 Population"
-                    dot={false}
-                    strokeWidth={2}
-                  />
-                )}
-                {Infected && (
-                  <Line
-                    type="monotone"
-                    dataKey="Infected"
-                    stroke="#ef4444"
-                    name="Infected"
-                    dot={false}
-                    strokeWidth={2}
-                  />
-                )}
-                {Recoverd && (
-                  <Line
-                    type="monotone"
-                    dataKey="Recovered"
-                    stroke="#929e28"
-                    name="Recovered"
-                    dot={false}
-                    strokeWidth={2}
-                  />
-                )}
-                {Cancer && (
-                  <Line
-                    type="monotone"
-                    dataKey="Cancer"
-                    stroke="#646473"
-                    name="Cancer Cases"
-                    dot={false}
-                    strokeWidth={2}
-                  />
-                )}
-                {showR && (
-                  <Line
-                    type="monotone"
-                    dataKey="Rt"
-                    stroke="#facc15"
-                    name="Rₜ (Effective Reproduction Number)"
-                    dot={false}
-                    strokeWidth={2}
-                  />
-                )}
-              </>
-            )}
-
-            {mode === 'ml' && (
-              <Line
-                type="monotone"
-                dataKey="prediction"
-                stroke="#ef4444"
-                strokeWidth={3}
-                name="ML Predicted Infected"
-                dot={false}
-              />
-            )}
-          </LineChart>
-        </ResponsiveContainer>
-        <div className="flex justify-normal p-5 gap-2">
-          <button
-            onClick={() => {
-              setS1(true)
-              setS2(false)
-              setInfected(false)
-              setRecoverd(false)
-              setCancer(false)
-              setshowR(false)
-            }}
-            className="flex-1 p-4  hover:bg-[#3b82f6]/20 rounded cursor-pointer bg-[#3b82f6]"
-          >
-            S1 Population
-          </button>
-
-          <button
-            onClick={() => {
-              setS1(false)
-              setS2(true)
-              setInfected(false)
-              setshowR(false)
-              setRecoverd(false)
-              setCancer(false)
-            }}
-            className="flex-1 p-4 rounded hover:bg-[#10b981]/20 cursor-pointer bg-[#10b981]"
-          >
-            S2 Population
-          </button>
-
-          <button
-            onClick={() => {
-              setS1(false)
-              setS2(false)
-              setInfected(true)
-              setRecoverd(false)
-              setshowR(false)
-              setCancer(false)
-            }}
-            className="flex-1 p-4 rounded hover:bg-[#ef4444]/20 cursor-pointer bg-[#ef4444]"
-          >
-            Infected
-          </button>
-
-          <button
-            onClick={() => {
-              setS1(false)
-              setS2(false)
-              setInfected(false)
-              setRecoverd(true)
-              setshowR(false)
-              setCancer(false)
-            }}
-            className="flex-1 p-4 rounded hover:bg-[#929e28]/20 cursor-pointer bg-[#929e28]"
-          >
-            Recovered
-          </button>
-
-          <button
-            onClick={() => {
-              setS1(false)
-              setS2(false)
-              setInfected(false)
-              setshowR(false)
-              setRecoverd(false)
-              setCancer(true)
-            }}
-            className="flex-1 p-4 rounded hover:bg-[#646473]/20 cursor-pointer bg-[#646473]"
-          >
-            Cancer Cases
-          </button>
-
-          <button
-            onClick={() => {
-              setS1(true)
-              setS2(true)
-              setInfected(true)
-              setRecoverd(true)
-              setshowR(false)
-              setCancer(true)
-            }}
-            className="flex-1 p-4 rounded  hover:bg-[#258f10]/20 cursor-pointer bg-[#258f10]"
-          >
-            All
-          </button>
-        </div>
-        {/* #"Implemented effective reproduction number (Rt) over time in NSFD simulation to analyze dynamic disease transmission instead of constant R0"
-        #git commit -m "Enhanced NSFD simulation by introducing time-varying reproduction number Rt. Rt is computed at each time step using Rt = ((1-m)*beta*S2(t))/(mu+1), enabling dynamic analysis of disease spread and control (Rt < 1 condition)." */}
-
-        {mode === 'ml' ? null : (
-          <div className="flex justify-normal mx-5">
-            <button
-              onClick={() => {
-                setS1(false)
-                setS2(false)
-                setInfected(false)
-                setRecoverd(false)
-                setCancer(false)
-                setshowR(true)
-              }}
-              className="flex-1 p-4  hover:bg-[#3b82f6]/20 rounded cursor-pointer bg-[#3b82f6]"
-            >
-              Visulize R₀
-            </button>
-            <button
-              onClick={() => setCal(!CalR)}
-              className="flex-1 mx-1 p-4  hover:bg-[#3b82f6]/20 rounded cursor-pointer bg-[#3b82f6]"
-            >
-              Calculate R₀
-            </button>
-          </div>
-        )}
-        {CalR && (
-          <div className="text-center p-5">
-            <h2 className="text-2xl font-bold text-cyan-400">Basic Reproduction Number (R₀)</h2>
-
-            <p className="text-lg mt-2">
-              R₀ = <span className="italic">((1 − m) × β × δ × A)</span> /
-              <span className="italic">((μ + n + (1 − n)) × (μ² + δm + δμ + μm))</span>
-            </p>
-
-            <div className="mt-3 text-xl font-semibold text-green-500">
-              Value: {data?.data?.R_0?.toFixed(4)}
-            </div>
-          </div>
-        )}
-
-        {showLimitaion && (
-          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50">
-            <div className="bg-blue-50 p-8 rounded max-w-md w-full shadow-lg border border-blue-200">
-              <h2 className="text-2xl font-semibold text-blue-900 mb-4 text-center">
-                {Limitaions[0].title}
-              </h2>
-              <ul className="list-disc list-inside space-y-2 text-blue-800 text-base">
-                <li>{Limitaions[1]}</li>
-                <li>{Limitaions[2]}</li>
-                <li>{Limitaions[3]}</li>
-                <li>{Limitaions[4]}</li>
-                <li>{Limitaions[5]}</li>
-              </ul>
-              <div className="flex justify-center mt-6">
+        {mode === 'ode' && (
+          <>
+            <div className="mt-4 flex flex-wrap items-center gap-2" role="group" aria-label="Visible series">
+              {SERIES.map((s) => (
                 <button
-                  className="px-6 py-2 bg-blue-600 text-white font-medium rounded-full hover:bg-blue-700 transition-colors duration-200 shadow"
-                  onClick={() => setShowLimitaion(false)}
+                  key={s.key}
+                  type="button"
+                  aria-pressed={visible[s.key]}
+                  onClick={() => toggle(s.key)}
+                  className={`inline-flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors ${
+                    visible[s.key]
+                      ? 'border-transparent bg-surface-2 text-ink'
+                      : 'border-line text-muted hover:text-ink'
+                  }`}
                 >
-                  Close
+                  <span
+                    className="h-2.5 w-2.5 rounded-full"
+                    style={{ background: visible[s.key] ? s.color : 'transparent', border: `2px solid ${s.color}` }}
+                    aria-hidden
+                  />
+                  {s.label}
                 </button>
-              </div>
+              ))}
+              <button
+                type="button"
+                onClick={() => setVisible({ S1: true, S2: true, Infected: true, Recovered: true, Cancer: true, Rt: true })}
+                className="rounded-full px-3 py-1.5 text-sm font-semibold text-brand hover:underline"
+              >
+                Show all
+              </button>
             </div>
-          </div>
+
+            <div className="mt-4">
+              <Button
+                size="sm"
+                variant="secondary"
+                aria-expanded={showR0}
+                onClick={() => setShowR0(!showR0)}
+                icon={<Calculator className="h-4 w-4" />}
+              >
+                Calculate R₀
+              </Button>
+            </div>
+
+            {showR0 && (
+              <div className="animate-rise mt-4 rounded-2xl bg-brand-soft p-5 text-center">
+                <h4 className="text-base font-bold text-ink">Basic reproduction number (R₀)</h4>
+                <p className="mt-2 overflow-x-auto font-mono text-sm text-ink-2">
+                  R₀ = ((1 − m) × β × δ × A) / ((μ + n + (1 − n)) × (μ² + δm + δμ + μm))
+                </p>
+                <p className="mt-3 font-display text-3xl font-extrabold text-brand">
+                  {data?.data?.R_0?.toFixed(4)}
+                </p>
+              </div>
+            )}
+          </>
         )}
+
         {Limitaions === '' && (
-          <div className="flex justify-center mt-4">
-            <button
-              type="button"
-              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2 rounded shadow-md transition duration-200"
+          <div className="mt-5 flex justify-center">
+            <a
+              href={`${import.meta.env.BASE_URL}future-predict`}
+              className={buttonClass({ variant: 'secondary', size: 'sm' })}
             >
-              <a href="/future-predict"> Try Again</a>
-            </button>
+              <RefreshCw className="h-4 w-4" aria-hidden /> Try again
+            </a>
           </div>
         )}
       </div>
-      <div style={{ position: 'absolute', top: -9999, left: -9999 }}>
-        {/* Pie Chart for PDF */}
-        <div ref={pieChartCanvasRef}>
+
+      <Modal
+        open={showLimitation && !!Limitaions && Limitaions !== ''}
+        onClose={() => setShowLimitation(false)}
+        title={Limitaions?.[0]?.title ?? 'Method limitations'}
+      >
+        <ul className="list-disc space-y-2.5 pl-5 text-sm leading-relaxed text-ink-2">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <li key={i}>{Limitaions?.[i]}</li>
+          ))}
+        </ul>
+        <div className="mt-6 flex justify-end">
+          <Button onClick={() => setShowLimitation(false)}>Close</Button>
+        </div>
+      </Modal>
+
+      {/* Off-screen charts captured into the PDF report */}
+      <div style={{ position: 'absolute', top: -9999, left: -9999 }} aria-hidden>
+        <div>
           <PieChartForPDF
             total_cells={mainResult?.total_cells}
             total_infected_cells={mainResult?.total_infected_cells}
           />
         </div>
-
-        {/* Line Chart for PDF */}
-        <div ref={lineChartCanvasRef}>
+        <div>
           <LineChartForPDF data={chartData} />
         </div>
       </div>
