@@ -29,17 +29,17 @@ const Signup = () => {
     email: '',
     password: '',
     role: '',
-    age: 0,
-    gender: 'unknown',
+    age: '' as number | '',
+    gender: '',
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
   const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target
-    // Patients must pick a gender explicitly; engineers keep the backend-friendly default.
+    // Age and gender belong to patients only: switching role clears them so they can never carry over.
     if (name === 'role') {
-      setForm({ ...form, role: value, gender: value === 'patient' ? '' : 'unknown' })
+      setForm({ ...form, role: value, age: '', gender: '' })
       return
     }
     setForm({ ...form, [name]: value })
@@ -64,7 +64,12 @@ const Signup = () => {
       const response = await apiFetch('/api/auth/signup/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        // Engineers send no age/gender at all; patients send both.
+        body: JSON.stringify(
+          form.role === 'patient'
+            ? { ...form, age: Number(form.age) }
+            : { username: form.username, email: form.email, password: form.password, role: form.role }
+        ),
       })
       const result = await response.json()
 

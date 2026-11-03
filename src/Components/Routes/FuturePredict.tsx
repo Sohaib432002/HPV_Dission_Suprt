@@ -33,7 +33,6 @@ const FuturePredict = () => {
   const [PredictionParameters, setPredictionParameters] = useState<any>(null)
   const [showGraph, setshowGraph] = useState<boolean>(false)
   const [loading, setloading] = useState<boolean>(false)
-  const [uploading, setUploading] = useState<boolean>(false)
   const [dragging, setDragging] = useState<boolean>(false)
   const [Model, setModel] = useState<boolean>(false)
   const [pendingAction, setPendingAction] = useState<string | null>(null)
@@ -65,26 +64,26 @@ const FuturePredict = () => {
     if (dropped.length) setFiles(dropped)
   }
 
+  const previewByName: Record<string, string> = Object.fromEntries(
+    images.map((img, i) => [img.name, previewUrls[i]])
+  )
+
   const removeImage = (index: number) => setFiles(images.filter((_, i) => i !== index))
 
-  const runUpload = async () => {
+  // The pictures are sent once, to the analysis step below. (They used to be uploaded twice:
+  // a separate "save" call first, then the real analysis.)
+  const runUpload = () => {
     const formData = new FormData()
     images.forEach((img) => formData.append('images', img))
     setForm(formData)
-    setUploading(true)
+    setResults({ files: images.map((img) => img.name) })
+  }
 
-    try {
-      const response = await apiFetch('/simulation/real_prediction', {
-        method: 'POST',
-        body: formData,
-      })
-      const data = await response.json()
-      setResults(data)
-    } catch {
-      toast.error('Image upload failed. Please try again.')
-    } finally {
-      setUploading(false)
-    }
+  const startOver = () => {
+    setResults(null)
+    setMainResult(null)
+    setForm(null)
+    setInfectionRate(null)
   }
 
   const handleSubmit = () => {
@@ -110,13 +109,14 @@ const FuturePredict = () => {
           method: 'POST',
           body: form,
         })
-        const data = await response.json()
+        const data = await response.json().catch(() => ({}))
+        if (!response.ok || data.error) throw new Error(data.error || 'Prediction failed')
         setMainResult(data)
-            setInfectionRate(
-              data.total_cells > 0 ? data.total_infected_cells / data.total_cells : 0
-            )
-      } catch {
-        toast.error('Prediction failed. Please try again.')
+        setInfectionRate(data.total_cells > 0 ? data.total_infected_cells / data.total_cells : 0)
+      } catch (err) {
+        // Return to the upload screen instead of leaving the spinner running forever.
+        toast.error(err instanceof Error && err.message !== 'Failed to fetch' ? err.message : 'Prediction failed. Please try again.')
+        startOver()
       }
     }
 
@@ -224,11 +224,10 @@ const FuturePredict = () => {
               size="lg"
               full
               className="mt-8"
-              loading={uploading}
               onClick={handleSubmit}
               icon={<ImagePlus className="h-5 w-5" />}
             >
-              {uploading ? 'Uploading…' : 'Check my pictures'}
+              Check my pictures
             </Button>
           </div>
         </Card>
@@ -281,7 +280,9 @@ const FuturePredict = () => {
         </div>
       )}
 
-      {showResult && mainResult && <ResultDashboard setshowResult={setShowResult} data={mainResult} />}
+      {showResult && mainResult && (
+        <ResultDashboard setshowResult={setShowResult} data={mainResult} previews={previewByName} />
+      )}
 
       <Modal
         open={Model}

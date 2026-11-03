@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { ArrowLeft, Biohazard, Image as ImageIcon, Layers, Microscope, Percent, X } from 'lucide-react'
 import { Badge, Button, Card, CardHeader, StatCard } from '../ui'
-import { API_BASE } from '../../lib/config'
 
 interface ImageResult {
   image: string
@@ -12,6 +11,8 @@ interface ImageResult {
   total_cells: number
   infected_cells: number
   infection_rate: number
+  /** Set instead of the fields above when this picture could not be analysed. */
+  error?: string
 }
 
 interface DashboardProps {
@@ -23,6 +24,8 @@ interface DashboardProps {
     image_results: ImageResult[]
   }
   setshowResult: React.Dispatch<React.SetStateAction<boolean>>
+  /** Local preview URL of each uploaded picture, keyed by file name. */
+  previews?: Record<string, string>
 }
 
 type BadgeTone = 'neutral' | 'brand' | 'danger' | 'warn' | 'info' | 'violet'
@@ -58,15 +61,15 @@ const Counter = ({ target, suffix = '' }: { target: number; suffix?: string }) =
   )
 }
 
-const Thumb = ({ image }: { image: string }) => {
+const Thumb = ({ src }: { src?: string }) => {
   const [failed, setFailed] = useState(false)
   return (
     <span className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-xl bg-surface-2 text-muted">
-      {failed ? (
+      {failed || !src ? (
         <ImageIcon className="h-5 w-5" aria-hidden />
       ) : (
         <img
-          src={`${API_BASE}/media/${image}`}
+          src={src}
           alt=""
           className="h-full w-full object-cover"
           onError={() => setFailed(true)}
@@ -85,7 +88,7 @@ const Confidence = ({ value }: { value: number }) => (
   </div>
 )
 
-const ResultDashboard = ({ data, setshowResult }: DashboardProps) => {
+const ResultDashboard = ({ data, setshowResult, previews = {} }: DashboardProps) => {
   const close = () => setshowResult(false)
 
   useEffect(() => {
@@ -101,6 +104,8 @@ const ResultDashboard = ({ data, setshowResult }: DashboardProps) => {
   if (!data) return null
 
   const rate = Number(data.overall_infection_rate)
+  const rows = data.image_results.filter((r) => !r.error)
+  const failedRows = data.image_results.filter((r) => r.error)
 
   return (
     <div
@@ -171,9 +176,24 @@ const ResultDashboard = ({ data, setshowResult }: DashboardProps) => {
         <Card>
           <CardHeader
             title="Image analysis results"
-            description={`${data.image_results.length} sample${data.image_results.length === 1 ? '' : 's'}`}
+            description={`${rows.length} sample${rows.length === 1 ? '' : 's'}`}
             icon={Microscope}
           />
+
+          {failedRows.length > 0 && (
+            <div role="alert" className="border-b border-line bg-danger-soft px-5 py-3 text-sm text-danger sm:px-6">
+              <p className="font-semibold">
+                {failedRows.length} picture{failedRows.length === 1 ? '' : 's'} could not be checked:
+              </p>
+              <ul className="mt-1 list-disc pl-5">
+                {failedRows.map((r, i) => (
+                  <li key={i}>
+                    {r.image}: {r.error}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           {/* Desktop table */}
           <div className="hidden overflow-x-auto md:block">
@@ -188,10 +208,10 @@ const ResultDashboard = ({ data, setshowResult }: DashboardProps) => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
-                {data.image_results.map((item, i) => (
+                {rows.map((item, i) => (
                   <tr key={i} className="transition-colors hover:bg-surface-2">
                     <td className="px-5 py-3">
-                      <Thumb image={item.image} />
+                      <Thumb src={previews[item.image]} />
                     </td>
                     <td className="px-5 py-3 font-semibold text-ink">{item.result}</td>
                     <td className="px-5 py-3">
@@ -216,10 +236,10 @@ const ResultDashboard = ({ data, setshowResult }: DashboardProps) => {
 
           {/* Mobile cards */}
           <ul className="divide-y divide-line md:hidden">
-            {data.image_results.map((item, i) => (
+            {rows.map((item, i) => (
               <li key={i} className="space-y-3 p-4">
                 <div className="flex items-center gap-3">
-                  <Thumb image={item.image} />
+                  <Thumb src={previews[item.image]} />
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-semibold text-ink">{item.result}</p>
                     <div className="mt-1 flex flex-wrap gap-1.5">
