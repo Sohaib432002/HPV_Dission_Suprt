@@ -76,22 +76,22 @@ const FlowChart = ({
 
   return (
     <ol>
-      <Step index={1} title="Analyzing cell images" state={analysed ? 'done' : 'active'}>
+      <Step index={1} title="Checking your cell pictures" state={analysed ? 'done' : 'active'}>
         {analysed ? (
           <div className="space-y-3">
             <CompletedAnimation label="Analysis complete" />
             <Button full variant="secondary" onClick={() => setshowResult(true)} icon={<ClipboardList className="h-4 w-4" />}>
-              Check results
+              See the results
             </Button>
           </div>
         ) : (
-          <Processing label="Running the classification model…" />
+          <Processing label="Counting infected cells. This can take a short while…" />
         )}
       </Step>
 
       <Step
         index={2}
-        title="Simulation parameters"
+        title="Choose the numbers for the forecast"
         state={!hasRate ? 'pending' : InputUser ? 'done' : 'active'}
         last
       >

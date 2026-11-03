@@ -9,7 +9,7 @@ import { apiFetch } from '../../lib/api'
 
 const roles = [
   { value: 'patient', label: 'Patient', icon: UserRound, hint: 'View your reports' },
-  { value: 'lab_engineer', label: 'Engineer', icon: FlaskConical, hint: 'Run simulations' },
+  { value: 'lab_engineer', label: 'Engineer', icon: FlaskConical, hint: 'Run tests and forecasts' },
 ]
 
 /** Flatten DRF error payloads ({field: [msg]} or {detail}) into one readable line. */
@@ -107,7 +107,7 @@ const Signup = () => {
         )}
 
         <fieldset>
-          <legend className="mb-1.5 text-sm font-medium text-ink-2">I am a</legend>
+          <legend className="mb-1.5 text-sm font-medium text-ink-2">I am a (choose one)</legend>
           <div className="grid grid-cols-2 gap-3">
             {roles.map((r) => (
               <label

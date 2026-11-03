@@ -21,12 +21,12 @@ type Props = {
 }
 
 const fields = [
-  { label: 'Growth rate (α)', name: 'recruitment_rate', min: 0.001, max: 50, step: 0.1 },
-  { label: 'Natural death rate (μ)', name: 'natural_death_rate', min: 0.001, max: 1, step: 0.1 },
-  { label: 'Transition rate (δ)', name: 'transition_rate', min: 0.001, max: 2, step: 0.1 },
-  { label: 'Recovery proportion (m)', name: 'recovery_proportion', min: 0.001, max: 1, step: 0.1 },
-  { label: 'Cancer progression rate (ρ)', name: 'cancer_progression_rate', min: 0.001, max: 2, step: 0.1 },
-  { label: 'Step size (h)', name: 'stepSize', min: 1, max: 500, step: 1, decimals: 0 },
+  { label: 'Growth rate (α)', name: 'recruitment_rate', hint: 'How quickly new people join the group.', min: 0.001, max: 50, step: 0.1 },
+  { label: 'Natural death rate (μ)', name: 'natural_death_rate', hint: 'How many people leave the group for natural reasons.', min: 0.001, max: 1, step: 0.1 },
+  { label: 'Transition rate (δ)', name: 'transition_rate', hint: 'How quickly people move to the next stage.', min: 0.001, max: 2, step: 0.1 },
+  { label: 'Recovery proportion (m)', name: 'recovery_proportion', hint: 'The share of people who recover. 1 means everyone.', min: 0.001, max: 1, step: 0.1 },
+  { label: 'Cancer progression rate (ρ)', name: 'cancer_progression_rate', hint: 'How quickly an infection can turn into cancer.', min: 0.001, max: 2, step: 0.1 },
+  { label: 'Step size (h)', name: 'stepSize', hint: 'Size of each calculation step. If unsure, leave it at 1.', min: 1, max: 500, step: 1, decimals: 0 },
 ] as const
 
 const InputForm = ({
@@ -51,7 +51,7 @@ const InputForm = ({
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
       <div className="flex items-center justify-between rounded-xl bg-brand-soft px-4 py-3">
-        <span className="text-sm font-medium text-ink-2">Infection rate (β) from images</span>
+        <span className="text-sm font-medium text-ink-2">Share of infected cells found in your pictures (β)</span>
         <span className="font-mono text-base font-bold text-brand">{InfectionRate.toFixed(4)}</span>
       </div>
 
@@ -65,7 +65,7 @@ const InputForm = ({
       ))}
 
       <Button type="submit" full icon={<LineChart className="h-4 w-4" />}>
-        Predict graph
+        Show me the forecast graph
       </Button>
     </form>
   )

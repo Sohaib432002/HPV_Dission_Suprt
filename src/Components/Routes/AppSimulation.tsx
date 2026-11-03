@@ -7,8 +7,10 @@ import {
   CardHeader,
   Container,
   EmptyState,
+  PageGuide,
   PageHeader,
   ParamSlider,
+  InfoTip,
   Spinner,
   useToast,
 } from '../ui'
@@ -44,9 +46,9 @@ const methodLimitations = {
 type Method = keyof typeof methodLimitations
 
 const methods: { key: Method; label: string; endpoint: string; variant: 'primary' | 'secondary' }[] = [
-  { key: 'rungeKutta', label: 'Run Runge-Kutta (RK)', endpoint: '/simulation/', variant: 'primary' },
-  { key: 'eulerMethod', label: "Run Euler's method", endpoint: '/simulation/hpv-EulersMethod', variant: 'secondary' },
-  { key: 'nsfdMethod', label: 'Run NSFD', endpoint: '/simulation/hpv-NSFDmethod', variant: 'secondary' },
+  { key: 'rungeKutta', label: 'Run: standard method (Runge-Kutta)', endpoint: '/simulation/', variant: 'primary' },
+  { key: 'eulerMethod', label: "Run: simple method (Euler's)", endpoint: '/simulation/hpv-EulersMethod', variant: 'secondary' },
+  { key: 'nsfdMethod', label: 'Run: careful method (NSFD)', endpoint: '/simulation/hpv-NSFDmethod', variant: 'secondary' },
 ]
 
 const DEFAULTS = {
@@ -165,27 +167,41 @@ const AppSimulation = () => {
   }
 
   const params = [
-    { key: 'recruitmentRate', label: 'Growth rate (α)', hint: 'Rate at which new individuals enter the population', min: 0.001, max: 50, step: 0.001 },
-    { key: 'transmissionRate', label: 'Transmission rate (β)', hint: 'Probability of infection per contact', min: 0.001, max: 3, step: 0.001 },
-    { key: 'naturalDeathRate', label: 'Natural death rate (μ)', hint: 'Rate at which individuals naturally die', min: 0.001, max: 3, step: 0.001 },
-    { key: 'transitionRate', label: 'Transition rate (δ)', hint: 'Rate of progression between susceptible stages', min: 0.001, max: 3, step: 0.001 },
-    { key: 'recoveryProportion', label: 'Recovery proportion (m)', hint: 'Fraction of infected who recover', min: 0.001, max: 3, step: 0.001 },
-    { key: 'cancerProgressionRate', label: 'Cancer progression rate (n)', hint: 'Rate at which infected progress to cancer', min: 0.001, max: 3, step: 0.001 },
-    { key: 'stepSize', label: 'Step size (h)', hint: 'Increment used by the numerical solver', min: 1, max: 500, step: 1, decimals: 0 },
+    { key: 'recruitmentRate', label: 'Growth rate (α)', hint: 'How quickly new people join the group each year.', min: 0.001, max: 50, step: 0.001 },
+    { key: 'transmissionRate', label: 'Transmission rate (β)', hint: 'How easily the virus passes from one person to another. Higher means it spreads faster.', min: 0.001, max: 3, step: 0.001 },
+    { key: 'naturalDeathRate', label: 'Natural death rate (μ)', hint: 'How many people leave the group each year for natural reasons.', min: 0.001, max: 3, step: 0.001 },
+    { key: 'transitionRate', label: 'Transition rate (δ)', hint: 'How quickly unprotected people move to the next stage (for example by being vaccinated).', min: 0.001, max: 3, step: 0.001 },
+    { key: 'recoveryProportion', label: 'Recovery proportion (m)', hint: 'The share of people who recover on their own. 1 means everyone.', min: 0.001, max: 3, step: 0.001 },
+    { key: 'cancerProgressionRate', label: 'Cancer progression rate (n)', hint: 'How quickly an infection can turn into cancer. Keep this low for realistic results.', min: 0.001, max: 3, step: 0.001 },
+    { key: 'stepSize', label: 'Step size (h)', hint: 'How big each calculation step is. Smaller steps are more careful but slower. If unsure, leave it at 1.', min: 1, max: 500, step: 1, decimals: 0 },
   ] as const
 
   return (
     <Container className="space-y-8 py-10 sm:py-12">
       <PageHeader
         title="HPV infection simulation lab"
-        description="Adjust epidemiological parameters and compare numerical solvers to explore how HPV spreads and may progress to cervical cancer, and to evaluate vaccination, screening and treatment strategies."
+        description="Try “what if” ideas and see how HPV could spread and change over the coming years."
       />
+
+      <PageGuide
+        id="simulation"
+        title="What is this page?"
+        steps={[
+          'Move the sliders on the left to change the situation.',
+          'Press a green “Run” button.',
+          'Read the graph: each coloured line is a group of people.',
+          'Not sure? Keep the starting numbers and press the first button.',
+        ]}
+      >
+        This is a practice space. Nothing here affects any patient. It shows how many people could be
+        healthy, infected or recovered over the next years if the numbers you choose were true.
+      </PageGuide>
 
       <div className="grid items-start gap-6 lg:grid-cols-[400px_1fr]">
         <Card className="lg:sticky lg:top-24">
           <CardHeader
-            title="Epidemiological parameters"
-            description="Drag a slider or type an exact value."
+            title="Settings you can change"
+            description="Drag a slider or type an exact number."
             icon={Activity}
           />
           <div className="scrollbar-thin max-h-[520px] space-y-5 overflow-y-auto p-5 sm:p-6">
@@ -194,6 +210,13 @@ const AppSimulation = () => {
             ))}
           </div>
           <div className="space-y-2.5 border-t border-line p-5 sm:p-6">
+            <p className="flex items-center gap-1.5 pb-1 text-xs text-muted">
+              Three ways to run the same test
+              <InfoTip>
+                Each button does the same calculation in a different way. The results should look
+                similar. If one looks strange, try another. Not sure? Press the first one.
+              </InfoTip>
+            </p>
             {methods.map((m) => (
               <Button
                 key={m.key}

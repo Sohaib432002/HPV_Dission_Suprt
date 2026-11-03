@@ -131,6 +131,18 @@ const ResultDashboard = ({ data, setshowResult }: DashboardProps) => {
           <StatCard label="Infection rate" value={<Counter target={rate} suffix="%" />} icon={Percent} tone="violet" />
         </div>
 
+        <details className="rounded-2xl border border-line bg-surface p-5 text-sm text-ink-2 shadow-card">
+          <summary className="cursor-pointer font-semibold text-ink">New here? What do these results mean?</summary>
+          <ul className="mt-3 space-y-1.5 leading-relaxed">
+            <li><strong className="text-ink">Infection rate:</strong> out of all the cells counted, the share that show signs of HPV.</li>
+            <li><strong className="text-ink">Disease:</strong> what the AI thinks it found in the picture.</li>
+            <li><strong className="text-ink">Stage:</strong> how far along the changes in the cells appear to be.</li>
+            <li><strong className="text-ink">Risk:</strong> Low, Medium or High, based on what was found.</li>
+            <li><strong className="text-ink">Confidence:</strong> how sure the AI is about its answer.</li>
+          </ul>
+          <p className="mt-3 text-xs text-muted">These are research results, not a diagnosis. Please talk to a doctor about them.</p>
+        </details>
+
         <Card className="p-5 sm:p-6">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-bold text-ink">Overall infection rate</h3>

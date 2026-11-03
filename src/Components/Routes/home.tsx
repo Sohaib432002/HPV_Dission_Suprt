@@ -6,6 +6,7 @@ import {
   Dna,
   FileText,
   FlaskConical,
+  HeartPulse,
   Microscope,
   ShieldCheck,
   SlidersHorizontal,
@@ -17,6 +18,7 @@ import type { LucideIcon } from 'lucide-react'
 import HPVModelDiagram from './HPV-model'
 import { Button, Container, LinkButton, SectionHeading } from '../ui'
 import { useAuth } from '../../lib/auth'
+import { useOnboarding } from '../onboarding/OnboardingContext'
 import { asset } from '../../lib/config'
 
 type Tone = 'brand' | 'info' | 'violet' | 'warn'
@@ -92,7 +94,8 @@ const capabilities: { icon: LucideIcon; title: string; desc: string }[] = [
 
 const Home = () => {
   const navigate = useNavigate()
-  const { isAuth } = useAuth()
+  const { isAuth, role } = useAuth()
+  const { openTour } = useOnboarding()
 
   const handleSimulationClick = () => navigate(isAuth ? '/simulation' : '/Login')
   const handlePredictionClick = () => navigate(isAuth ? '/future-predict' : '/Login')
@@ -107,22 +110,22 @@ const Home = () => {
     {
       icon: FlaskConical,
       tone: 'brand',
-      title: 'Simulation Lab',
-      desc: 'Run Runge-Kutta, Euler and NSFD solvers on the HPV model.',
+      title: 'Simulation (What-if Tests)',
+      desc: 'Change a few numbers and watch how HPV could spread over time. Made for lab staff.',
       onClick: handleSimulationClick,
     },
     {
       icon: Microscope,
       tone: 'info',
-      title: 'Image Prediction',
-      desc: 'Upload cell images for AI infection analysis and forecasting.',
+      title: 'Check Cell Pictures',
+      desc: 'Upload cell pictures. The AI checks them and shows what may happen next.',
       onClick: handlePredictionClick,
     },
     {
       icon: FileText,
       tone: 'violet',
       title: 'Patient Reports',
-      desc: 'Generate, save and download professional PDF reports.',
+      desc: 'Find your results and download them as a PDF whenever you need.',
       onClick: () => navigate(isAuth ? '/PatientProfile' : '/Login'),
     },
     {
@@ -142,30 +145,30 @@ const Home = () => {
           <div className="animate-rise">
             <span className="inline-flex items-center gap-2 rounded-full border border-line bg-surface px-3.5 py-1.5 text-xs font-semibold text-ink-2 shadow-sm">
               <span className="h-2 w-2 rounded-full bg-brand" aria-hidden />
-              Biomedical research platform
+              A tool for understanding HPV
             </span>
             <h1 className="mt-6 text-4xl font-extrabold leading-[1.08] text-ink sm:text-5xl lg:text-6xl">
-              Modeling the
-              <span className="block text-brand">Dynamics of HPV</span>
+              Understand HPV
+              <span className="block text-brand">from a simple cell image</span>
             </h1>
             <p className="mt-6 max-w-xl text-base leading-relaxed text-ink-2 sm:text-lg">
-              Human Papillomavirus (HPV) is one of the most common viral infections associated with
-              cervical cancer. This platform brings mathematical modeling, AI and epidemiological
-              simulation together to explore infection dynamics and predict disease progression.
+              HPV is a very common virus that can lead to cervical cancer. This website looks at
+              microscope pictures of cervical cells, tells you how many show signs of HPV, and
+              shows a simple graph of how the infection could spread in the future.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Button size="lg" onClick={handleSimulationClick} icon={<FlaskConical className="h-5 w-5" />}>
-                Open Simulation Lab
+                Try the Simulation
               </Button>
               <Button size="lg" variant="secondary" onClick={handlePredictionClick}>
-                Run Prediction Model <ArrowRight className="h-4 w-4" aria-hidden />
+                Check cell pictures <ArrowRight className="h-4 w-4" aria-hidden />
               </Button>
             </div>
             <ul className="mt-10 flex flex-wrap gap-x-8 gap-y-3 text-sm font-medium text-ink-2">
               {[
-                [Brain, 'Deep-learning image analysis'],
-                [Activity, 'Three numerical solvers'],
-                [ShieldCheck, 'Role-based secure access'],
+                [Brain, 'AI checks your cell pictures'],
+                [Activity, 'Easy graphs, no maths needed'],
+                [ShieldCheck, 'Private accounts for patients and lab staff'],
               ].map(([Icon, text]) => {
                 const I = Icon as LucideIcon
                 return (
@@ -202,13 +205,103 @@ const Home = () => {
         </Container>
       </section>
 
+      {/* PLAIN-WORDS INTRO */}
+      <section className="py-16 sm:py-20">
+        <Container>
+          <SectionHeading
+            eyebrow="In simple words"
+            title="What is this website?"
+            description="It is an online tool that helps people understand HPV. You give it microscope pictures of cervical cells, and it tells you what it finds and what could happen next."
+          />
+          <div className="mt-10 grid gap-5 md:grid-cols-3">
+            {[
+              {
+                icon: Microscope,
+                title: 'What it does',
+                text: 'Looks at pictures of cells and counts how many of them show signs of HPV.',
+              },
+              {
+                icon: HeartPulse,
+                title: 'Why it helps',
+                text: 'Finding HPV early makes it easier to act early. You get clear numbers and graphs instead of confusing data.',
+              },
+              {
+                icon: FileText,
+                title: 'What you get',
+                text: 'A risk level, a graph of how things may change over the years, and a PDF report you can keep.',
+              },
+            ].map((c) => (
+              <div key={c.title} className="rounded-2xl border border-line bg-surface p-6 shadow-card">
+                <span className="grid h-11 w-11 place-items-center rounded-xl bg-brand-soft text-brand">
+                  <c.icon className="h-5 w-5" aria-hidden />
+                </span>
+                <h3 className="mt-4 text-lg font-bold text-ink">{c.title}</h3>
+                <p className="mt-1.5 text-sm leading-relaxed text-ink-2">{c.text}</p>
+              </div>
+            ))}
+          </div>
+          <p className="mx-auto mt-6 max-w-3xl text-center text-sm text-muted">
+            <strong className="text-ink-2">Who is it for?</strong> Lab staff who run the tests (they sign up as
+            “Engineer”), and patients who want to read their own reports (they sign up as “Patient”).
+          </p>
+
+          <div className="mt-14 rounded-3xl border border-line bg-surface p-6 shadow-card sm:p-10">
+            <h3 className="text-center font-display text-2xl font-extrabold text-ink sm:text-3xl">
+              How to get started
+            </h3>
+            <ol className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+              {[
+                ['Create an account', 'It takes a minute. Choose “Patient” or “Engineer”.'],
+                ['Log in', 'Use the name and password you chose.'],
+                ['Upload cell pictures', 'Open “Check cell pictures” and add your images. Wait a moment while they are checked.'],
+                ['Read and save the results', 'See the numbers and graph, then download your PDF report.'],
+              ].map(([t, d], i) => (
+                <li key={t} className="flex items-start gap-3.5">
+                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-brand font-display text-base font-bold text-brand-fg">
+                    {i + 1}
+                  </span>
+                  <div>
+                    <p className="font-bold text-ink">{t}</p>
+                    <p className="mt-1 text-sm leading-relaxed text-ink-2">{d}</p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+            <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
+              {isAuth ? (
+                <>
+                  <Button size="lg" onClick={handlePredictionClick} icon={<Microscope className="h-5 w-5" />}>
+                    Check cell pictures
+                  </Button>
+                  <LinkButton to={role === 'patient' ? '/PatientProfile' : '/LabEngProfile'} size="lg" variant="secondary">
+                    Open my dashboard
+                  </LinkButton>
+                </>
+              ) : (
+                <>
+                  <LinkButton to="/SignUp" size="lg">
+                    Create an account
+                  </LinkButton>
+                  <LinkButton to="/Login" size="lg" variant="secondary">
+                    I already have an account
+                  </LinkButton>
+                </>
+              )}
+              <Button size="lg" variant="ghost" onClick={openTour}>
+                Take a quick tour
+              </Button>
+            </div>
+          </div>
+        </Container>
+      </section>
+
       {/* SERVICES */}
       <section className="py-16 sm:py-20">
         <Container>
           <SectionHeading
             eyebrow="Platform"
-            title="Everything you need for HPV research"
-            description="From microscope images to long-range forecasts, each step of the workflow lives in one place."
+            title="What you can do here"
+            description="Pick a tool below. Each one is explained in a sentence. You will be asked to log in first."
           />
           <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {services.map((s) => (

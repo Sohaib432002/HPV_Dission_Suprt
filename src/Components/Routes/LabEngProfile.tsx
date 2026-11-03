@@ -20,6 +20,7 @@ import {
   EmptyState,
   Input,
   LinkButton,
+  PageGuide,
   PageHeader,
   Skeleton,
   StatCard,
@@ -74,7 +75,7 @@ export default function LabEngineerDashboard() {
     <Container className="space-y-8 py-10 sm:py-12">
       <PageHeader
         title="Lab engineer dashboard"
-        description="Manage patients, analyze reports, and track system performance."
+        description="See the patients you have worked with and open their saved reports."
         action={
           <div className="flex flex-wrap gap-3">
             <LinkButton to="/future-predict" variant="secondary" size="sm">
@@ -86,6 +87,19 @@ export default function LabEngineerDashboard() {
           </div>
         }
       />
+
+      <PageGuide
+        id="lab-dashboard"
+        title="What can I do here?"
+        steps={[
+          'Pick a patient from the list on the left.',
+          'Their saved reports appear on the right.',
+          'Press a report to open it as a PDF.',
+          'Use the buttons at the top to check new pictures or try the simulation.',
+        ]}
+      >
+        This page is your overview. “Processed cases” is the number of reports saved so far.
+      </PageGuide>
 
       <div className="grid gap-4 sm:grid-cols-3">
         <StatCard label="Total patients" value={loading ? '–' : patients.length} icon={Users} />

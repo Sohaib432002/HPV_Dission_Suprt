@@ -15,7 +15,7 @@ import { Calculator, FileDown, Info, RefreshCw } from 'lucide-react'
 import { generateProfessionalPDF } from './Report'
 import { PieChartForPDF, LineChartForPDF } from './PdfCharts'
 import { useTheme } from '../ThemeContext'
-import { Badge, Button, Modal, Spinner, buttonClass, useToast } from '../ui'
+import { Badge, Button, InfoTip, Modal, Spinner, buttonClass, useToast } from '../ui'
 
 import { apiFetch } from '../../lib/api'
 import { getAccessToken, useAuth } from '../../lib/auth'
@@ -271,7 +271,20 @@ const SimulationChart = ({
               </button>
             </div>
 
-            <div className="mt-4">
+            <details className="mt-4 rounded-xl border border-line bg-surface-2 p-4 text-sm text-ink-2">
+              <summary className="cursor-pointer font-semibold text-ink">What do these lines mean?</summary>
+              <ul className="mt-3 space-y-1.5 leading-relaxed">
+                <li><strong className="text-ink">S1 Population:</strong> healthy people who are not vaccinated.</li>
+                <li><strong className="text-ink">S2 Population:</strong> healthy people who are vaccinated.</li>
+                <li><strong className="text-ink">Infected:</strong> people who currently have HPV.</li>
+                <li><strong className="text-ink">Recovered:</strong> people who got better or are protected.</li>
+                <li><strong className="text-ink">Cancer cases:</strong> people whose infection has turned into cancer.</li>
+                <li><strong className="text-ink">Rₜ:</strong> how many people one infected person passes the virus to right now.</li>
+              </ul>
+              <p className="mt-3 text-xs text-muted">Click the coloured buttons above to show or hide a line.</p>
+            </details>
+
+            <div className="mt-4 flex items-center gap-2">
               <Button
                 size="sm"
                 variant="secondary"
@@ -281,6 +294,10 @@ const SimulationChart = ({
               >
                 Calculate R₀
               </Button>
+              <InfoTip>
+                R₀ is the number of people one infected person is expected to pass HPV to. Above 1 the
+                infection keeps spreading. Below 1 it slowly dies out.
+              </InfoTip>
             </div>
 
             {showR0 && (

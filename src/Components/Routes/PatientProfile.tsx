@@ -9,6 +9,7 @@ import {
   EmptyState,
   Input,
   LinkButton,
+  PageGuide,
   PageHeader,
   Skeleton,
   StatCard,
@@ -72,8 +73,14 @@ export default function PatientDashboard() {
     <Container className="space-y-8 py-10 sm:py-12">
       <PageHeader
         title={`Welcome, ${patient.name}`}
-        description="View your medical reports and download them instantly."
+        description="This is your personal page. Your reports are listed here."
       />
+
+      <PageGuide id="patient-dashboard" title="What can I do here?">
+        Each line in “Previous reports” is one result saved for you. Press <strong>Download</strong> to
+        save it as a PDF you can print or share with your doctor. If the list is empty, no report has
+        been added for you yet.
+      </PageGuide>
 
       <div className="grid gap-4 sm:grid-cols-3">
         <StatCard label="Total reports" value={loading ? '–' : reports.length} icon={FileText} />
