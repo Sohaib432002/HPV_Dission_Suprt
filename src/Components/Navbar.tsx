@@ -8,7 +8,7 @@ import { buttonClass } from './ui/buttonStyles'
 import { BrandMark } from './ui/BrandMark'
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
-  `rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+  `whitespace-nowrap rounded-lg px-2.5 py-2 text-sm font-medium transition-colors ${
     isActive ? 'bg-brand-soft text-brand' : 'text-ink-2 hover:bg-surface-2 hover:text-ink'
   }`
 
@@ -85,11 +85,11 @@ const Navbar = () => {
         <Link to="/" className="flex items-center gap-2.5" aria-label="HPV Research Lab home">
           <BrandMark />
           <span className="font-display text-lg font-extrabold tracking-tight text-ink">
-            HPV<span className="text-brand lg:max-xl:hidden"> Research Lab</span>
+            HPV<span className="text-brand xl:max-2xl:hidden"> Research Lab</span>
           </span>
         </Link>
 
-        <nav aria-label="Primary" className="hidden items-center gap-1 lg:flex">
+        <nav aria-label="Primary" className="hidden items-center gap-0.5 xl:flex">
           {links.map((l) => (
             <NavLink key={l.to} to={l.to} end={l.end} className={linkClass}>
               {l.label}
@@ -97,7 +97,7 @@ const Navbar = () => {
           ))}
         </nav>
 
-        <div className="hidden items-center gap-2 lg:flex">
+        <div className="hidden items-center gap-2 xl:flex">
           {helpButton}
           {themeButton}
           {isAuth ? (
@@ -116,7 +116,7 @@ const Navbar = () => {
           )}
         </div>
 
-        <div className="flex items-center gap-2 lg:hidden">
+        <div className="flex items-center gap-2 xl:hidden">
           {helpButton}
           {themeButton}
           <button
@@ -135,14 +135,14 @@ const Navbar = () => {
       {menuOpen && (
         <>
           <div
-            className="fixed inset-x-0 bottom-0 top-16 z-40 bg-black/40 backdrop-blur-sm lg:hidden"
+            className="fixed inset-x-0 bottom-0 top-16 z-40 bg-black/40 backdrop-blur-sm xl:hidden"
             onClick={() => setMenuOpen(false)}
             aria-hidden
           />
           <nav
             id="mobile-menu"
             aria-label="Mobile"
-            className="animate-rise absolute inset-x-0 top-16 z-50 max-h-[calc(100vh-4rem)] overflow-y-auto border-b border-line bg-surface p-4 shadow-pop lg:hidden"
+            className="animate-rise absolute inset-x-0 top-16 z-50 max-h-[calc(100vh-4rem)] overflow-y-auto border-b border-line bg-surface p-4 shadow-pop xl:hidden"
           >
             <div className="flex flex-col gap-1">
               {links.map((l) => (
