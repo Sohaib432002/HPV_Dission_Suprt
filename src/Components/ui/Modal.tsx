@@ -14,11 +14,17 @@ type ModalProps = {
 /** Accessible dialog: Escape closes, focus moves inside, background scroll locks. */
 export function Modal({ open, onClose, title, description, children, size = 'md' }: ModalProps) {
   const panel = useRef<HTMLDivElement>(null)
+  // Keep the latest onClose without re-running the focus effect on every parent render
+  // (an inline onClose would otherwise steal focus from the input being typed in).
+  const closeRef = useRef(onClose)
+  useEffect(() => {
+    closeRef.current = onClose
+  })
 
   useEffect(() => {
     if (!open) return
     const previous = document.activeElement as HTMLElement | null
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && closeRef.current()
     document.addEventListener('keydown', onKey)
     document.body.style.overflow = 'hidden'
     panel.current?.focus()
@@ -27,7 +33,7 @@ export function Modal({ open, onClose, title, description, children, size = 'md'
       document.body.style.overflow = ''
       previous?.focus?.()
     }
-  }, [open, onClose])
+  }, [open])
 
   if (!open) return null
 
