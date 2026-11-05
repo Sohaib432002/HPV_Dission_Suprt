@@ -7,23 +7,14 @@
 
 import { jsPDF } from 'jspdf'
 import { jwtDecode } from 'jwt-decode'
+import { describeDots } from '../../lib/analysis'
+import type { AnalysisResult, ImageRow } from '../../lib/analysis'
 
 // ─────────────────────────────────────────────
 //  TYPES
 // ─────────────────────────────────────────────
 
-export interface ImageResult {
-  image: string
-  result: string
-  stage: string
-  risk: string
-  hpv: string
-  confidence?: number
-  total_cells?: number
-  infected_cells?: number
-  infection_rate?: number
-  error?: string
-}
+export type ImageResult = ImageRow
 
 export interface ChartDiv {
   element: HTMLElement
@@ -39,10 +30,7 @@ export interface PDFReportProps {
   patient_id?: string
   age?: number
   gender?: string
-  overall_infection_rate: number
-  total_cells: number
-  total_infected_cells: number
-  image_results: ImageResult[]
+  analysis: AnalysisResult
   S_1_Cal: number
   S_2_Cal: number
   I_Cal: number
@@ -159,30 +147,6 @@ function pill(p: jsPDF, x: number, y: number, label: string, fg: RGB, bg: RGB, s
 const num = (n: unknown, digits: number) =>
   typeof n === 'number' && Number.isFinite(n) ? n.toFixed(digits) : '-'
 
-const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n))
-
-function riskTone(risk: string): { fg: RGB; bg: RGB } {
-  const r = (risk || '').toLowerCase()
-  if (r.includes('high') || r.includes('critical') || r.includes('severe')) return { fg: C.danger, bg: C.dangerSoft }
-  if (r.includes('med') || r.includes('moderate')) return { fg: C.warn, bg: C.warnSoft }
-  if (r.includes('low')) return { fg: C.brand, bg: C.brandSoft }
-  return { fg: C.muted, bg: C.surface2 }
-}
-
-const riskBucket = (risk: string): 'Low' | 'Medium' | 'High' | 'Other' => {
-  const r = (risk || '').toLowerCase()
-  if (r.includes('high') || r.includes('critical') || r.includes('severe')) return 'High'
-  if (r.includes('med') || r.includes('moderate')) return 'Medium'
-  if (r.includes('low')) return 'Low'
-  return 'Other'
-}
-
-const hpvBucket = (hpv: string): 'Detected' | 'Not detected' | 'Unknown' => {
-  const h = (hpv || '').toLowerCase()
-  if (/not|neg|no /.test(h)) return 'Not detected'
-  if (/detect|pos/.test(h)) return 'Detected'
-  return 'Unknown'
-}
 
 // ─────────────────────────────────────────────
 //  PAGE FURNITURE
@@ -284,34 +248,57 @@ function drawTitle(d: Doc, name: string, dateText: string) {
   d.y += 26
 }
 
-function drawHero(d: Doc, rate: number, infected: number, total: number, pictures: number) {
+function drawHero(d: Doc, a: AnalysisResult) {
   const { p } = d
-  const h = 46
-  const tone = rate > 60 ? { fg: C.danger, bg: C.dangerSoft, t: 'High level' } : rate > 30 ? { fg: C.warn, bg: C.warnSoft, t: 'Moderate level' } : { fg: C.brand, bg: C.white, t: 'Low level' }
+  const h = 50
+  const value = a.dots_per_nucleus
+  const verdict = describeDots(value, a.reference)
+  const toneColor: Record<string, RGB> = { brand: C.brand, info: C.info, warn: C.warn, danger: C.danger }
+  const fg = verdict ? toneColor[verdict.tone] : C.muted
 
   box(p, M, d.y, CW, h, C.brandSoft, C.brandEdge, 4)
   font(p, 7.5, 'bold', C.ink2)
-  p.text('OVERALL INFECTION RATE', M + 8, d.y + 10)
-  font(p, 32, 'bold', tone.fg)
-  p.text(`${num(rate, 2)}%`, M + 8, d.y + 26)
-  pill(p, M + 8, d.y + 29.5, tone.t, tone.fg, tone.bg)
+  p.text('AGNOR DOTS PER NUCLEUS', M + 8, d.y + 10)
+  font(p, 32, 'bold', fg)
+  p.text(value != null ? num(value, 2) : '-', M + 8, d.y + 26)
+  if (verdict) pill(p, M + 8, d.y + 29.5, verdict.label, fg, C.white)
 
   const rx = M + CW / 2 + 4
-  font(p, 11, 'bold', C.ink)
-  const line = p.splitTextToSize(`${infected.toLocaleString()} of ${total.toLocaleString()} counted cells show signs of HPV.`, CW / 2 - 14)
-  p.text(line, rx, d.y + 14)
+  font(p, 10.5, 'bold', C.ink)
+  const headline =
+    value != null
+      ? `${a.agnor_dots.toLocaleString()} AgNOR dots in ${a.nuclei.toLocaleString()} nuclei, counted by experts.`
+      : 'No expert counts for these pictures.'
+  const lines = p.splitTextToSize(headline, CW / 2 - 14)
+  p.text(lines, rx, d.y + 13)
   font(p, 8.5, 'normal', C.ink2)
-  p.text(`Based on ${pictures} picture${pictures === 1 ? '' : 's'} checked by the AI.`, rx, d.y + 14 + line.length * 5 + 2)
+  const sub =
+    value != null
+      ? `The middle reference picture has ${num(a.reference.median, 2)} dots per nucleus.`
+      : 'Counts exist only for pictures of the reference set. See the closest reference slides below.'
+  p.text(p.splitTextToSize(sub, CW / 2 - 14), rx, d.y + 13 + lines.length * 5 + 2)
 
-  const barX = M + 8
-  const barW = CW - 16
+  // ruler: where this sample sits among the reference pictures
+  const bx = M + 8
+  const bw = CW - 16
+  const by = d.y + h - 10
+  const max = Math.max(a.reference.p90 * 1.25, (value ?? 0) * 1.1, 1)
+  const at = (v: number) => bx + (bw * Math.min(v, max)) / max
   fillC(p, C.white)
-  p.roundedRect(barX, d.y + h - 9, barW, 3, 1.5, 1.5, 'F')
-  const fillW = (barW * clamp(rate, 0, 100)) / 100
-  if (fillW > 0.5) {
-    fillC(p, tone.fg)
-    p.roundedRect(barX, d.y + h - 9, Math.max(fillW, 3), 3, 1.5, 1.5, 'F')
+  p.roundedRect(bx, by, bw, 3, 1.5, 1.5, 'F')
+  fillC(p, C.brandEdge)
+  p.roundedRect(bx, by, at(a.reference.p75) - bx, 3, 1.5, 1.5, 'F')
+  fillC(p, C.warnSoft)
+  p.rect(at(a.reference.p75), by, at(a.reference.p90) - at(a.reference.p75), 3, 'F')
+  fillC(p, C.dangerSoft)
+  p.rect(at(a.reference.p90), by, bx + bw - at(a.reference.p90), 3, 'F')
+  if (value != null) {
+    fillC(p, C.ink)
+    p.roundedRect(at(value) - 0.8, by - 1.5, 1.6, 6, 0.8, 0.8, 'F')
   }
+  font(p, 6.5, 'normal', C.muted)
+  p.text('fewer dots', bx, by + 7)
+  p.text('more dots', bx + bw, by + 7, { align: 'right' })
   d.y += h + 6
 }
 
@@ -367,8 +354,8 @@ function drawPatientInfo(d: Doc, props: PDFReportProps, isLab: boolean, labName:
 function drawHowToRead(d: Doc) {
   const { p } = d
   const items: [string, string][] = [
-    ['Infection rate', 'out of all the cells counted, the share that show signs of HPV.'],
-    ['Risk', 'Low, Medium or High, based on what the AI found in each picture.'],
+    ['AgNOR dots', 'tiny black dots inside a nucleus. Their average number is a research marker of cell activity.'],
+    ['Closest slide', 'the AI top guess among 15 reference slides. It was often not the true slide in our spot check, so it is a demo only. It is not a diagnosis.'],
     ['R0', 'how many people one infected person passes HPV to. Above 1 it spreads; below 1 it fades.'],
   ]
   const lineH = 5.6
@@ -390,19 +377,19 @@ function drawHowToRead(d: Doc) {
 
 function drawSummaryTable(d: Doc, props: PDFReportProps) {
   const { p } = d
-  const { total_cells, total_infected_cells, overall_infection_rate, image_results, S_1_Cal, S_2_Cal, I_Cal, R_Cal, C_Cal, R0_Cal } = props
-  const okCount = image_results.filter((r) => !r.error).length
+  const { analysis: a, S_1_Cal, S_2_Cal, I_Cal, R_Cal, C_Cal, R0_Cal } = props
 
-  section(d, 'Summary of numbers', 'Counts from your pictures, then results from the mathematical model.')
+  section(d, 'Summary of numbers', 'Expert counts from your pictures, then results from the mathematical model.')
 
   const rows: { name: string; value: string; note: string; dot: RGB }[] = [
-    { name: 'Cells counted', value: total_cells.toLocaleString(), note: 'All cells found in the pictures', dot: C.brand },
-    { name: 'Infected cells', value: total_infected_cells.toLocaleString(), note: 'Cells that show signs of HPV', dot: C.inf },
-    { name: 'Infection rate', value: `${num(overall_infection_rate, 2)}%`, note: 'Infected cells out of all cells', dot: C.warn },
-    { name: 'Pictures checked', value: String(okCount), note: 'Images analysed by the AI', dot: C.violet },
+    { name: 'Pictures checked', value: String(a.images_analyzed), note: 'Pictures analysed', dot: C.violet },
+    { name: 'Pictures with expert counts', value: String(a.annotated_images), note: 'Pictures of the reference set', dot: C.brand },
+    { name: 'Nuclei counted', value: a.annotated_images ? a.nuclei.toLocaleString() : '-', note: 'By experts, reference pictures only', dot: C.s2 },
+    { name: 'AgNOR dots', value: a.annotated_images ? a.agnor_dots.toLocaleString() : '-', note: 'Clusters and satellites', dot: C.rec },
+    { name: 'Dots per nucleus', value: a.dots_per_nucleus != null ? num(a.dots_per_nucleus, 2) : '-', note: `Reference middle: ${num(a.reference.median, 2)}`, dot: C.warn },
     { name: 'S1 - healthy, unvaccinated', value: num(S_1_Cal, 4), note: 'Model: people not yet protected', dot: C.s1 },
     { name: 'S2 - healthy, vaccinated', value: num(S_2_Cal, 4), note: 'Model: vaccinated, still at some risk', dot: C.s2 },
-    { name: 'I - infected', value: num(I_Cal, 4), note: 'Model: people who have HPV', dot: C.inf },
+    { name: 'I - infected', value: num(I_Cal, 4), note: R0_Cal <= 1 ? 'Model: infection dies out' : 'Model: people who have HPV', dot: C.inf },
     { name: 'R - recovered', value: num(R_Cal, 4), note: 'Model: people who recovered', dot: C.rec },
     { name: 'C - cancer', value: num(C_Cal, 4), note: 'Model: infection that became cancer', dot: C.can },
     { name: 'R0 - reproduction number', value: num(R0_Cal, 4), note: 'How fast the virus can spread', dot: C.brand },
@@ -432,7 +419,6 @@ function drawSummaryTable(d: Doc, props: PDFReportProps) {
     p.circle(M + 4, d.y + 4.4, 1.2, 'F')
     font(p, 9, 'bold', C.ink)
     p.text(trunc(p, r.name, cols[0] - 10), M + 8, d.y + 5.4)
-    font(p, 9, 'bold', C.ink)
     p.text(r.value, M + 6 + cols[0], d.y + 5.4)
     font(p, 8, 'normal', C.muted)
     p.text(trunc(p, r.note, cols[2] - 4), M + 6 + cols[0] + cols[1], d.y + 5.4)
@@ -503,70 +489,55 @@ function drawR0(d: Doc, r0: number) {
 
 function drawCellOverview(d: Doc, props: PDFReportProps) {
   const { p } = d
-  const { total_cells, total_infected_cells, image_results } = props
-  const ok = image_results.filter((r) => !r.error)
-  const healthy = Math.max(total_cells - total_infected_cells, 0)
-  const infectedShare = total_cells > 0 ? total_infected_cells / total_cells : 0
+  const a = props.analysis
+  const ok = a.image_results.filter((r) => !r.error)
+  const clusters = ok.reduce((n, r) => n + (r.clusters ?? 0), 0)
+  const satellites = ok.reduce((n, r) => n + (r.satellites ?? 0), 0)
+  const dots = clusters + satellites
 
-  section(d, 'Cells and pictures', 'How the cells split, and how the pictures were graded.')
+  section(d, 'AgNOR dots and reference slides', 'What was counted, and which reference slides the pictures look most like.')
 
-  // healthy vs infected stacked bar
   ensure(d, 40)
   box(p, M, d.y, CW, 24, C.white, C.line, 3)
   const bx = M + 8
   const bw = CW - 16
-  fillC(p, C.s2)
+  fillC(p, C.surface2)
   p.roundedRect(bx, d.y + 7, bw, 5, 2.5, 2.5, 'F')
-  if (infectedShare > 0) {
+  if (dots > 0) {
     fillC(p, C.inf)
-    p.roundedRect(bx + bw * (1 - infectedShare), d.y + 7, Math.max(bw * infectedShare, 2.5), 5, 2.5, 2.5, 'F')
+    p.roundedRect(bx, d.y + 7, Math.max((bw * clusters) / dots, 2.5), 5, 2.5, 2.5, 'F')
+    fillC(p, C.warn)
+    p.roundedRect(bx + (bw * clusters) / dots, d.y + 7, Math.max((bw * satellites) / dots, 2.5), 5, 2.5, 2.5, 'F')
   }
   font(p, 8.5, 'normal', C.ink2)
-  fillC(p, C.s2)
-  p.circle(bx + 1.5, d.y + 18, 1.2, 'F')
-  p.text(`Healthy cells: ${healthy.toLocaleString()}`, bx + 5, d.y + 19)
   fillC(p, C.inf)
-  p.circle(bx + 62, d.y + 18, 1.2, 'F')
-  p.text(`Infected cells: ${total_infected_cells.toLocaleString()}`, bx + 66, d.y + 19)
+  p.circle(bx + 1.5, d.y + 18, 1.2, 'F')
+  p.text(`Clusters (touching dots): ${clusters.toLocaleString()}`, bx + 5, d.y + 19)
+  fillC(p, C.warn)
+  p.circle(bx + 70, d.y + 18, 1.2, 'F')
+  p.text(`Satellites (single dots): ${satellites.toLocaleString()}`, bx + 74, d.y + 19)
   d.y += 30
 
-  // risk + HPV status side by side
-  const risk: Record<string, number> = { Low: 0, Medium: 0, High: 0 }
-  const hpv: Record<string, number> = { Detected: 0, 'Not detected': 0, Unknown: 0 }
+  const tally: Record<string, number> = {}
   ok.forEach((r) => {
-    const rb = riskBucket(r.risk)
-    if (rb !== 'Other') risk[rb]++
-    hpv[hpvBucket(r.hpv)]++
+    if (r.best_slide) tally[r.best_slide] = (tally[r.best_slide] ?? 0) + 1
   })
+  const top = Object.entries(tally).sort((x, y) => y[1] - x[1]).slice(0, 5)
 
-  ensure(d, 40)
-  const gap = 4
-  const w = (CW - gap) / 2
-  const panel = (x: number, title: string, items: { label: string; value: number; fg: RGB; bg: RGB }[]) => {
-    box(p, x, d.y, w, 34, C.white, C.line, 3)
-    font(p, 9.5, 'bold', C.ink)
-    p.text(title, x + 6, d.y + 8)
-    const cw = (w - 12) / items.length
-    items.forEach((it, i) => {
-      const cx = x + 6 + i * cw
-      box(p, cx, d.y + 12, cw - 2.5, 17, it.bg, undefined, 2.5)
-      font(p, 14, 'bold', it.fg)
-      p.text(String(it.value), cx + 4, d.y + 21.5)
-      font(p, 7, 'bold', it.fg)
-      p.text(it.label.toUpperCase(), cx + 4, d.y + 26.2)
-    })
+  ensure(d, 34)
+  box(p, M, d.y, CW, 28, C.white, C.line, 3)
+  font(p, 9.5, 'bold', C.ink)
+  p.text('Closest reference slides', M + 6, d.y + 8)
+  let x = M + 6
+  if (top.length === 0) {
+    font(p, 8.5, 'normal', C.muted)
+    p.text('No pictures were compared.', x, d.y + 19)
   }
-  panel(M, 'Risk level of pictures', [
-    { label: 'Low', value: risk.Low, fg: C.brand, bg: C.brandSoft },
-    { label: 'Medium', value: risk.Medium, fg: C.warn, bg: C.warnSoft },
-    { label: 'High', value: risk.High, fg: C.danger, bg: C.dangerSoft },
-  ])
-  panel(M + w + gap, 'HPV status of pictures', [
-    { label: 'Detected', value: hpv.Detected, fg: C.danger, bg: C.dangerSoft },
-    { label: 'Not found', value: hpv['Not detected'], fg: C.brand, bg: C.brandSoft },
-    { label: 'Unknown', value: hpv.Unknown, fg: C.muted, bg: C.surface2 },
-  ])
-  d.y += 42
+  top.forEach(([slide, count]) => {
+    const w = pill(p, x, d.y + 14, `Slide ${slide}: ${count} picture${count === 1 ? '' : 's'}`, C.violet, C.violetSoft, 7.5)
+    x += w + 3
+  })
+  d.y += 36
 }
 
 async function drawExternalCharts(d: Doc, charts: ChartDiv[]) {
@@ -588,7 +559,7 @@ async function drawExternalCharts(d: Doc, charts: ChartDiv[]) {
   }
 }
 
-function drawImageTable(d: Doc, results: ImageResult[]) {
+function drawImageTable(d: Doc, results: ImageRow[]) {
   const { p } = d
   const ok = results.filter((r) => !r.error)
   const failed = results.filter((r) => r.error)
@@ -602,8 +573,8 @@ function drawImageTable(d: Doc, results: ImageResult[]) {
     return
   }
 
-  const cols = [8, 40, 28, 28, 22, 18, 34]
-  const heads = ['#', 'PICTURE', 'RESULT', 'STAGE', 'RISK', 'CONF.', 'INFECTED / CELLS']
+  const cols = [8, 58, 20, 20, 30, 42]
+  const heads = ['#', 'PICTURE', 'NUCLEI', 'DOTS', 'DOTS / NUCLEUS', 'CLOSEST SLIDE']
   const rowH = 9
   const head = () => {
     box(p, M, d.y, CW, 8.5, C.brandSoft, undefined, 2)
@@ -631,13 +602,10 @@ function drawImageTable(d: Doc, results: ImageResult[]) {
     }
     cell(String(i + 1), cols[0], 'bold', C.muted)
     cell(r.image, cols[1], 'normal', C.ink)
-    cell(r.result, cols[2], 'bold', C.ink)
-    cell(r.stage, cols[3])
-    const tone = riskTone(r.risk)
-    pill(p, x - 1, d.y + 1.8, trunc(p, r.risk || '-', cols[4] - 4), tone.fg, tone.bg, 6.5)
-    x += cols[4]
-    cell(typeof r.confidence === 'number' ? `${num(r.confidence, 1)}%` : '-', cols[5])
-    cell(`${(r.infected_cells ?? 0).toLocaleString()} / ${(r.total_cells ?? 0).toLocaleString()}`, cols[6], 'bold', C.ink)
+    cell(r.annotated ? String(r.nuclei ?? 0) : '-', cols[2])
+    cell(r.annotated ? String(r.agnor_dots ?? 0) : '-', cols[3])
+    cell(r.annotated && r.dots_per_nucleus != null ? num(r.dots_per_nucleus, 2) : '-', cols[4], 'bold', C.ink)
+    pill(p, x - 1, d.y + 1.8, `Slide ${r.best_slide ?? '-'} - ${num(r.best_slide_similarity, 0)}%`, C.violet, C.violetSoft, 6.5)
     hairline(p, M, d.y + rowH - 0.5, M + CW)
     d.y += rowH
   })
@@ -679,12 +647,13 @@ function drawSignOff(d: Doc, name: string) {
   d.y += 38
 }
 
-function drawDisclaimer(d: Doc) {
+function drawDisclaimer(d: Doc, note: string) {
   const { p } = d
   const lines = [
-    'This report was created by the HPV Research Lab website. It is not a medical diagnosis and does not replace a doctor.',
-    'The infection rate comes from counting cells in your pictures. The forecast numbers come from a mathematical model.',
-    'Please have a qualified medical professional review these results.',
+    'This report was created by the HPV Research Lab website. It is a research demo, not a medical test, and it does not replace a doctor.',
+    note,
+    'The forecast shows how HPV could spread in a population for the settings you chose. It is not a prediction for one person.',
+    'Please talk to a qualified medical professional about any health concern.',
   ]
   font(p, 8, 'normal', C.ink2)
   const wrapped = lines.map((l) => p.splitTextToSize(l, CW - 20) as string[])
@@ -723,7 +692,7 @@ function decodedToken(): Record<string, unknown> {
 // ─────────────────────────────────────────────
 
 export async function generateProfessionalPDF(props: PDFReportProps): Promise<Blob> {
-  const { accountRole, overall_infection_rate, total_cells, total_infected_cells, image_results, R0_Cal, LabEngineerName, chartDivs = [], PatientDetails, patient_name } = props
+  const { accountRole, analysis, R0_Cal, LabEngineerName, chartDivs = [], PatientDetails, patient_name } = props
 
   // Role: explicit prop, then the signed-in user's token, then patient.
   const decoded = decodedToken()
@@ -744,15 +713,14 @@ export async function generateProfessionalPDF(props: PDFReportProps): Promise<Bl
 
   const patientName = PatientDetails?.Name || patient_name || 'the patient'
   const dateText = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
-  const okPictures = image_results.filter((r) => !r.error).length
 
   // Page 1: the answer first, details after
   drawTitle(d, patientName, dateText)
-  drawHero(d, overall_infection_rate, total_infected_cells, total_cells, okPictures)
+  drawHero(d, analysis)
   drawStatTiles(d, [
-    { label: 'Pictures checked', value: String(okPictures), color: C.ink },
-    { label: 'Cells counted', value: total_cells.toLocaleString(), color: C.brand },
-    { label: 'Infected cells', value: total_infected_cells.toLocaleString(), color: C.danger },
+    { label: 'Pictures checked', value: String(analysis.images_analyzed), color: C.ink },
+    { label: 'Nuclei counted', value: analysis.annotated_images ? analysis.nuclei.toLocaleString() : '-', color: C.brand },
+    { label: 'AgNOR dots', value: analysis.annotated_images ? analysis.agnor_dots.toLocaleString() : '-', color: C.violet },
   ])
   drawPatientInfo(d, props, isLab, labName)
   drawHowToRead(d)
@@ -766,9 +734,9 @@ export async function generateProfessionalPDF(props: PDFReportProps): Promise<Bl
   drawR0(d, R0_Cal)
   drawCellOverview(d, props)
   await drawExternalCharts(d, chartDivs)
-  drawImageTable(d, image_results)
+  drawImageTable(d, analysis.image_results)
   if (isLab) drawSignOff(d, labName)
-  drawDisclaimer(d)
+  drawDisclaimer(d, analysis.note)
 
   const total = (pdf as any).internal.getNumberOfPages()
   for (let pg = 1; pg <= total; pg++) {

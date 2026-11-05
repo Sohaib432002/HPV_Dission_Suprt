@@ -29,7 +29,6 @@ const FuturePredict = () => {
   const [mainResult, setMainResult] = useState<any>(null)
   const [form, setForm] = useState<FormData | null>(null)
   const [showResult, setShowResult] = useState<boolean>(false)
-  const [infectionRate, setInfectionRate] = useState<number | null>(null)
   const [PredictionParameters, setPredictionParameters] = useState<any>(null)
   const [showGraph, setshowGraph] = useState<boolean>(false)
   const [loading, setloading] = useState<boolean>(false)
@@ -41,10 +40,10 @@ const FuturePredict = () => {
     recruitment_rate: 50,
     natural_death_rate: 0.014,
     transition_rate: 0.1,
-    transmission_rate: 0.1,
+    transmission_rate: 0.42,
     recovery_proportion: 0.98,
     cancer_progression_rate: 0.003,
-    stepSize: 1,
+    stepSize: 0.1,
   })
 
   const setFiles = useCallback((files: File[]) => {
@@ -83,7 +82,6 @@ const FuturePredict = () => {
     setResults(null)
     setMainResult(null)
     setForm(null)
-    setInfectionRate(null)
   }
 
   const handleSubmit = () => {
@@ -112,7 +110,6 @@ const FuturePredict = () => {
         const data = await response.json().catch(() => ({}))
         if (!response.ok || data.error) throw new Error(data.error || 'Prediction failed')
         setMainResult(data)
-        setInfectionRate(data.total_cells > 0 ? data.total_infected_cells / data.total_cells : 0)
       } catch (err) {
         // Return to the upload screen instead of leaving the spinner running forever.
         toast.error(err instanceof Error && err.message !== 'Failed to fetch' ? err.message : 'Prediction failed. Please try again.')
@@ -131,7 +128,7 @@ const FuturePredict = () => {
   }
 
   const handlePredictionSubmit = async () => {
-    const payload = { ...params, transmission_rate: infectionRate }
+    const payload = { ...params }
     setloading(true)
     setshowGraph(true)
 
@@ -153,8 +150,8 @@ const FuturePredict = () => {
   return (
     <Container className="space-y-8 py-10 sm:py-12">
       <PageHeader
-        title="Check cell pictures and see what may happen next"
-        description="Add microscope pictures of cervical cells. The website checks them for signs of HPV, then shows how the infection could change over time."
+        title="Analyse cell pictures"
+        description="Add microscope pictures. The website shows the expert-counted AgNOR dots for reference pictures and which reference slides a picture looks most like. Afterwards you can try a what-if forecast."
       />
 
       <PageGuide
@@ -163,12 +160,15 @@ const FuturePredict = () => {
         steps={[
           'Add one or more cell pictures (JPG or PNG).',
           'Press the button and wait while the pictures are checked.',
-          'Look at the results, then press “Predict graph” to see the forecast.',
-          'Download the PDF report to keep your results.',
+          'Read the results: the counts and the closest reference slides.',
+          'Optional: try the what-if forecast and download the PDF report.',
         ]}
       >
-        You do not need to know any medical or computer terms. The website does the counting and the
-        calculations for you. Results are for research and should be confirmed by a doctor.{' '}
+        This is a research demo, not a medical test. It cannot say whether someone has HPV or cancer.{' '}
+        <Link to="/learn" className="font-semibold text-brand underline-offset-2 hover:underline">
+          See how it works
+        </Link>
+        .{' '}
         No pictures to try?{' '}
         <Link to="/sample-images" className="font-semibold text-brand underline-offset-2 hover:underline">
           Download sample images
@@ -241,7 +241,6 @@ const FuturePredict = () => {
                 Result={results}
                 mainResult={mainResult}
                 setshowResult={setShowResult}
-                InfectionRate={infectionRate}
                 params={params}
                 setParams={setParams}
                 handlePredictionSubmit={handlePredictionSubmit}
@@ -250,13 +249,13 @@ const FuturePredict = () => {
           </Card>
 
           <Card className="min-w-0">
-            <CardHeader title="Simulation graph" description="Projected infection dynamics based on your images." icon={LineChart} />
+            <CardHeader title="What-if forecast" description="How HPV could spread in a population with the settings you choose. It is not a forecast for these pictures." icon={LineChart} />
             <div className="flex min-h-[460px] items-center justify-center p-4 sm:p-6">
               {!showGraph ? (
                 <EmptyState
                   icon={LineChart}
-                  title="Waiting for parameters"
-                  description="Once the image analysis finishes, set the simulation parameters to generate the graph."
+                  title="Waiting for settings"
+                  description="Once your pictures are checked, you can choose settings and see how HPV could spread over the years."
                 />
               ) : loading ? (
                 <Spinner label="Running simulation…" />
@@ -272,7 +271,7 @@ const FuturePredict = () => {
                 <EmptyState
                   icon={LineChart}
                   title="No graph yet"
-                  description="Run the simulation to visualize infection dynamics."
+                  description="Press the forecast button to see how healthy, infected and recovered groups change over time."
                 />
               )}
             </div>

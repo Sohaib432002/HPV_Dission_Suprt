@@ -9,7 +9,7 @@ const features: { icon: LucideIcon; title: string; desc: string }[] = [
   {
     icon: Microscope,
     title: 'AI Image Analysis',
-    desc: 'Deep learning models classify cervical cells for infection detection.',
+    desc: 'A deep learning demo that compares microscope pictures with 15 reference slides.',
   },
   {
     icon: Brain,
@@ -224,20 +224,17 @@ const About = () => {
           <h2 className="mt-3 text-3xl font-extrabold text-ink sm:text-4xl">AI Image Analysis</h2>
           <div className="mt-6 space-y-4 text-base leading-relaxed text-ink-2">
             <p>
-              Artificial intelligence techniques analyze cervical microscopy images, enabling rapid
-              and highly accurate detection of infected cells. This automation accelerates
-              diagnostic workflows, reduces human error, and ensures consistent results across
-              large-scale screenings.
+              This website works with AgNOR-stained cervical microscopy pictures. Experts counted the
+              nuclei and the tiny dots inside them, and the average number of dots per nucleus is a
+              research marker of cell activity. It is not an HPV test and not a diagnosis.
             </p>
             <p>
-              Advanced deep learning models classify cells into infected and normal categories,
-              generating rich datasets for epidemiological modeling, predictive simulations, and
-              public health decision-making.
+              A ResNet50 network was trained to tell 15 reference slides apart. Because it saw only 15
+              women and was never tested on new patients, it is a demonstration of the technique.
             </p>
             <p>
-              By combining AI with statistical modeling, healthcare professionals can better
-              understand HPV transmission dynamics, monitor outbreaks in real time, and evaluate the
-              effectiveness of preventive measures such as screening and immunization campaigns.
+              Separately, the simulation lab models how HPV could spread in a population and lets you
+              test what-if scenarios such as vaccination. Read the plain-language guide on the How it works page.
             </p>
           </div>
           <div className="mt-6 flex flex-wrap gap-2">

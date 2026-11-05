@@ -56,7 +56,7 @@ const steps: Step[] = [
         <Point
           icon={Microscope}
           title="Check cell pictures"
-          text="Upload microscope images. The website counts how many cells look infected and gives a risk level."
+          text="Upload microscope images. The website shows expert-counted AgNOR dots per nucleus for reference pictures. It is not a diagnosis."
         />
         <Point
           icon={LineChart}

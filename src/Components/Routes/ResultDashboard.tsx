@@ -1,46 +1,19 @@
 import React, { useEffect, useState } from 'react'
-import { ArrowLeft, Biohazard, Image as ImageIcon, Layers, Microscope, Percent, X } from 'lucide-react'
-import { Badge, Button, Card, CardHeader, StatCard } from '../ui'
-
-interface ImageResult {
-  image: string
-  result: string
-  stage: string
-  risk: string
-  confidence: number
-  total_cells: number
-  infected_cells: number
-  infection_rate: number
-  /** Set instead of the fields above when this picture could not be analysed. */
-  error?: string
-}
+import { Link } from 'react-router-dom'
+import { ArrowLeft, CircleDot, Gauge, Image as ImageIcon, Info, Layers, Microscope, X } from 'lucide-react'
+import { Badge, Button, Card, CardHeader, EmptyState, StatCard } from '../ui'
+import { describeDots } from '../../lib/analysis'
+import type { AnalysisResult, ReferenceSummary } from '../../lib/analysis'
 
 interface DashboardProps {
-  data: {
-    images_analyzed: number
-    total_cells: number
-    total_infected_cells: number
-    overall_infection_rate: number
-    image_results: ImageResult[]
-  }
+  data: AnalysisResult
   setshowResult: React.Dispatch<React.SetStateAction<boolean>>
   /** Local preview URL of each uploaded picture, keyed by file name. */
   previews?: Record<string, string>
 }
 
-type BadgeTone = 'neutral' | 'brand' | 'danger' | 'warn' | 'info' | 'violet'
-
-const RISK_TONE: Record<string, BadgeTone> = { High: 'danger', Medium: 'warn', Low: 'brand' }
-const STAGE_TONE: Record<string, BadgeTone> = {
-  'Stage 0': 'neutral',
-  'Stage I': 'info',
-  'Stage II': 'violet',
-  'Stage III': 'danger',
-  'Stage IV': 'danger',
-}
-
 /** Counts up to `target` once on mount. */
-const Counter = ({ target, suffix = '' }: { target: number; suffix?: string }) => {
+const Counter = ({ target, digits = 0 }: { target: number; digits?: number }) => {
   const [val, setVal] = useState(0)
   useEffect(() => {
     let frame = 0
@@ -53,12 +26,7 @@ const Counter = ({ target, suffix = '' }: { target: number; suffix?: string }) =
     frame = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(frame)
   }, [target])
-  return (
-    <>
-      {val.toLocaleString(undefined, { maximumFractionDigits: Number.isInteger(target) ? 0 : 2 })}
-      {suffix}
-    </>
-  )
+  return <>{val.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits })}</>
 }
 
 const Thumb = ({ src }: { src?: string }) => {
@@ -68,25 +36,48 @@ const Thumb = ({ src }: { src?: string }) => {
       {failed || !src ? (
         <ImageIcon className="h-5 w-5" aria-hidden />
       ) : (
-        <img
-          src={src}
-          alt=""
-          className="h-full w-full object-cover"
-          onError={() => setFailed(true)}
-        />
+        <img src={src} alt="" className="h-full w-full object-cover" onError={() => setFailed(true)} />
       )}
     </span>
   )
 }
 
-const Confidence = ({ value }: { value: number }) => (
-  <div className="flex items-center gap-2">
-    <div className="h-1.5 w-14 overflow-hidden rounded-full bg-surface-2">
-      <div className="h-full rounded-full bg-brand" style={{ width: `${value}%` }} />
+/** A ruler of AgNOR dots per nucleus across all reference pictures, with this sample marked on it. */
+function ReferenceScale({ value, reference }: { value: number; reference: ReferenceSummary }) {
+  const max = Math.max(reference.p90 * 1.25, value * 1.1, 1)
+  const pos = (v: number) => `${Math.min(100, (v / max) * 100)}%`
+  const marks = [
+    { v: reference.p25, label: 'Lower quarter' },
+    { v: reference.median, label: 'Middle' },
+    { v: reference.p75, label: 'Upper quarter' },
+    { v: reference.p90, label: 'Top 10%' },
+  ]
+  return (
+    <div>
+      <div className="relative h-3 rounded-full bg-surface-2" role="img" aria-label={`Your sample: ${value.toFixed(2)} dots per nucleus`}>
+        <div className="absolute inset-y-0 left-0 rounded-full bg-brand-soft" style={{ width: pos(reference.p75) }} />
+        <div className="absolute inset-y-0 rounded-r-full bg-warn-soft" style={{ left: pos(reference.p75), width: `calc(${pos(reference.p90)} - ${pos(reference.p75)})` }} />
+        <div className="absolute inset-y-0 rounded-r-full bg-danger-soft" style={{ left: pos(reference.p90), right: 0 }} />
+        <span
+          className="absolute top-1/2 h-6 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-ink shadow"
+          style={{ left: pos(value) }}
+        />
+      </div>
+      <div className="relative mt-2 h-9 text-[11px] text-muted">
+        {marks.map((m) => (
+          <span key={m.label} className="absolute -translate-x-1/2 text-center leading-tight" style={{ left: pos(m.v) }}>
+            <span className="block font-semibold text-ink-2">{m.v}</span>
+            {m.label}
+          </span>
+        ))}
+      </div>
+      <p className="mt-1 text-xs text-muted">
+        Scale: AgNOR dots per nucleus in {reference.pictures.toLocaleString()} reference pictures. The black bar is your sample (
+        {value.toFixed(2)}).
+      </p>
     </div>
-    <span className="text-sm font-semibold text-ink">{value}%</span>
-  </div>
-)
+  )
+}
 
 const ResultDashboard = ({ data, setshowResult, previews = {} }: DashboardProps) => {
   const close = () => setshowResult(false)
@@ -103,24 +94,22 @@ const ResultDashboard = ({ data, setshowResult, previews = {} }: DashboardProps)
 
   if (!data) return null
 
-  const rate = Number(data.overall_infection_rate)
   const rows = data.image_results.filter((r) => !r.error)
   const failedRows = data.image_results.filter((r) => r.error)
+  const verdict = describeDots(data.dots_per_nucleus, data.reference)
 
   return (
     <div
       role="dialog"
       aria-modal="true"
-      aria-label="HPV analysis dashboard"
+      aria-label="Picture analysis results"
       className="animate-rise fixed inset-0 z-[60] overflow-y-auto bg-bg"
     >
       <div className="sticky top-0 z-10 border-b border-line bg-surface/90 backdrop-blur-xl">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
           <div>
-            <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.14em] text-brand">
-              <span className="h-2 w-2 animate-pulse rounded-full bg-brand" aria-hidden /> Live analysis
-            </p>
-            <h2 className="text-lg font-extrabold text-ink sm:text-xl">HPV analysis dashboard</h2>
+            <p className="text-xs font-bold uppercase tracking-[0.14em] text-brand">Research demo</p>
+            <h2 className="text-lg font-extrabold text-ink sm:text-xl">Picture analysis results</h2>
           </div>
           <Button variant="secondary" size="sm" onClick={close} icon={<X className="h-4 w-4" />}>
             Close
@@ -129,54 +118,64 @@ const ResultDashboard = ({ data, setshowResult, previews = {} }: DashboardProps)
       </div>
 
       <div className="mx-auto max-w-6xl space-y-6 px-4 py-8 sm:px-6">
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <StatCard label="Images analyzed" value={<Counter target={Number(data.images_analyzed)} />} icon={Microscope} tone="info" />
-          <StatCard label="Total cells" value={<Counter target={Number(data.total_cells)} />} icon={Layers} />
-          <StatCard label="Infected cells" value={<Counter target={Number(data.total_infected_cells)} />} icon={Biohazard} tone="danger" />
-          <StatCard label="Infection rate" value={<Counter target={rate} suffix="%" />} icon={Percent} tone="violet" />
+        <div className="flex items-start gap-3 rounded-2xl bg-info-soft p-4 text-sm leading-relaxed text-ink-2">
+          <Info className="mt-0.5 h-5 w-5 shrink-0 text-info" aria-hidden />
+          <p>
+            <strong className="text-ink">This is not a diagnosis.</strong> {data.note}{' '}
+            <Link to="/learn" onClick={close} className="font-semibold text-brand hover:underline">
+              How does this work?
+            </Link>
+          </p>
         </div>
 
-        <details className="rounded-2xl border border-line bg-surface p-5 text-sm text-ink-2 shadow-card">
-          <summary className="cursor-pointer font-semibold text-ink">New here? What do these results mean?</summary>
-          <ul className="mt-3 space-y-1.5 leading-relaxed">
-            <li><strong className="text-ink">Infection rate:</strong> out of all the cells counted, the share that show signs of HPV.</li>
-            <li><strong className="text-ink">Disease:</strong> what the AI thinks it found in the picture.</li>
-            <li><strong className="text-ink">Stage:</strong> how far along the changes in the cells appear to be.</li>
-            <li><strong className="text-ink">Risk:</strong> Low, Medium or High, based on what was found.</li>
-            <li><strong className="text-ink">Confidence:</strong> how sure the AI is about its answer.</li>
-          </ul>
-          <p className="mt-3 text-xs text-muted">These are research results, not a diagnosis. Please talk to a doctor about them.</p>
-        </details>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <StatCard label="Pictures checked" value={<Counter target={data.images_analyzed} />} icon={Microscope} tone="info" />
+          <StatCard
+            label="Nuclei counted"
+            value={data.annotated_images ? <Counter target={data.nuclei} /> : '–'}
+            icon={Layers}
+            hint={data.annotated_images ? `in ${data.annotated_images} picture${data.annotated_images === 1 ? '' : 's'} with expert counts` : 'no expert counts available'}
+          />
+          <StatCard label="AgNOR dots" value={data.annotated_images ? <Counter target={data.agnor_dots} /> : '–'} icon={CircleDot} tone="violet" hint="clusters + satellites" />
+          <StatCard
+            label="Dots per nucleus"
+            value={data.dots_per_nucleus != null ? <Counter target={data.dots_per_nucleus} digits={2} /> : '–'}
+            icon={Gauge}
+            tone={verdict?.tone === 'danger' ? 'danger' : verdict?.tone === 'warn' ? 'warn' : 'brand'}
+            hint={verdict?.label}
+          />
+        </div>
 
-        <Card className="p-5 sm:p-6">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold text-ink">Overall infection rate</h3>
-            <span className="font-display text-lg font-extrabold text-danger">{data.overall_infection_rate}%</span>
-          </div>
-          <div
-            className="mt-3 h-3 overflow-hidden rounded-full bg-surface-2"
-            role="progressbar"
-            aria-valuenow={rate}
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-label="Overall infection rate"
-          >
-            <div
-              className="h-full rounded-full bg-danger transition-[width] duration-1000 ease-out"
-              style={{ width: `${Math.min(100, Math.max(0, rate))}%` }}
+        {data.annotated_images > 0 && data.dots_per_nucleus != null ? (
+          <Card className="p-5 sm:p-6">
+            <h3 className="text-sm font-bold text-ink">Where your sample sits among the reference pictures</h3>
+            <p className="mt-1 text-sm text-muted">
+              AgNOR dots are tiny black dots in the nucleus. The average number per nucleus is a long-used research
+              marker of how actively cells are dividing. It does not show whether HPV is present.
+            </p>
+            <div className="mt-6">
+              <ReferenceScale value={data.dots_per_nucleus} reference={data.reference} />
+            </div>
+          </Card>
+        ) : (
+          <Card>
+            <EmptyState
+              icon={Microscope}
+              title="No expert counts for these pictures"
+              description="Counts exist only for pictures of the CCAgT reference set. Your pictures can still be compared with the reference slides below. To see counts, try the sample images."
+              action={
+                <Link to="/sample-images" onClick={close} className="text-sm font-semibold text-brand hover:underline">
+                  Get sample images
+                </Link>
+              }
             />
-          </div>
-          <div className="mt-1.5 flex justify-between text-[11px] text-muted" aria-hidden>
-            {[0, 25, 50, 75, 100].map((v) => (
-              <span key={v}>{v}%</span>
-            ))}
-          </div>
-        </Card>
+          </Card>
+        )}
 
         <Card>
           <CardHeader
-            title="Image analysis results"
-            description={`${rows.length} sample${rows.length === 1 ? '' : 's'}`}
+            title="Picture by picture"
+            description={`${rows.length} picture${rows.length === 1 ? '' : 's'}. “Closest slide” is one of 15 reference slides (A to O), each from a different woman. It is an unreliable demo: in our spot check the top guess often was not the picture's true slide.`}
             icon={Microscope}
           />
 
@@ -195,12 +194,11 @@ const ResultDashboard = ({ data, setshowResult, previews = {} }: DashboardProps)
             </div>
           )}
 
-          {/* Desktop table */}
           <div className="hidden overflow-x-auto md:block">
-            <table className="w-full min-w-[720px] text-left text-sm">
+            <table className="w-full min-w-[760px] text-left text-sm">
               <thead>
                 <tr className="border-b border-line text-xs uppercase tracking-wider text-muted">
-                  {['Image', 'Disease', 'Stage', 'Risk', 'Confidence', 'Total cells', 'Infected', 'Rate'].map((h) => (
+                  {['Picture', 'Nuclei', 'Clusters', 'Satellites', 'Dots per nucleus', 'Closest slide'].map((h) => (
                     <th key={h} scope="col" className="px-5 py-3 font-semibold">
                       {h}
                     </th>
@@ -208,25 +206,43 @@ const ResultDashboard = ({ data, setshowResult, previews = {} }: DashboardProps)
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
-                {rows.map((item, i) => (
+                {rows.map((r, i) => (
                   <tr key={i} className="transition-colors hover:bg-surface-2">
                     <td className="px-5 py-3">
-                      <Thumb src={previews[item.image]} />
+                      <div className="flex items-center gap-3">
+                        <Thumb src={previews[r.image]} />
+                        <span className="max-w-[200px] truncate font-semibold text-ink">{r.image}</span>
+                      </div>
                     </td>
-                    <td className="px-5 py-3 font-semibold text-ink">{item.result}</td>
+                    {r.annotated ? (
+                      <>
+                        <td className="px-5 py-3 text-ink-2">{r.nuclei}</td>
+                        <td className="px-5 py-3 text-ink-2">{r.clusters}</td>
+                        <td className="px-5 py-3 text-ink-2">{r.satellites}</td>
+                        <td className="px-5 py-3">
+                          {r.dots_per_nucleus != null ? (
+                            <span className="font-semibold text-ink">
+                              {r.dots_per_nucleus.toFixed(2)}
+                              {r.reference_percentile != null && (
+                                <span className="ml-1.5 text-xs font-normal text-muted">
+                                  (more than {Math.round(r.reference_percentile)}% of reference)
+                                </span>
+                              )}
+                            </span>
+                          ) : (
+                            <span className="text-muted">no nucleus</span>
+                          )}
+                        </td>
+                      </>
+                    ) : (
+                      <td colSpan={4} className="px-5 py-3 text-muted">
+                        No expert counts (not a reference picture)
+                      </td>
+                    )}
                     <td className="px-5 py-3">
-                      <Badge tone={STAGE_TONE[item.stage] ?? 'neutral'}>{item.stage}</Badge>
-                    </td>
-                    <td className="px-5 py-3">
-                      <Badge tone={RISK_TONE[item.risk] ?? 'neutral'}>{item.risk}</Badge>
-                    </td>
-                    <td className="px-5 py-3">
-                      <Confidence value={item.confidence} />
-                    </td>
-                    <td className="px-5 py-3 text-ink-2">{item.total_cells.toLocaleString()}</td>
-                    <td className="px-5 py-3 font-semibold text-danger">{item.infected_cells.toLocaleString()}</td>
-                    <td className="px-5 py-3">
-                      <Badge tone="danger">{item.infection_rate}%</Badge>
+                      <Badge tone="violet">
+                        Slide {r.best_slide} · {r.best_slide_similarity}%
+                      </Badge>
                     </td>
                   </tr>
                 ))}
@@ -234,40 +250,40 @@ const ResultDashboard = ({ data, setshowResult, previews = {} }: DashboardProps)
             </table>
           </div>
 
-          {/* Mobile cards */}
           <ul className="divide-y divide-line md:hidden">
-            {rows.map((item, i) => (
+            {rows.map((r, i) => (
               <li key={i} className="space-y-3 p-4">
                 <div className="flex items-center gap-3">
-                  <Thumb src={previews[item.image]} />
+                  <Thumb src={previews[r.image]} />
                   <div className="min-w-0 flex-1">
-                    <p className="truncate font-semibold text-ink">{item.result}</p>
-                    <div className="mt-1 flex flex-wrap gap-1.5">
-                      <Badge tone={STAGE_TONE[item.stage] ?? 'neutral'}>{item.stage}</Badge>
-                      <Badge tone={RISK_TONE[item.risk] ?? 'neutral'}>{item.risk} risk</Badge>
-                    </div>
+                    <p className="truncate font-semibold text-ink">{r.image}</p>
+                    <Badge tone="violet">
+                      Slide {r.best_slide} · {r.best_slide_similarity}%
+                    </Badge>
                   </div>
                 </div>
-                <dl className="grid grid-cols-2 gap-3 text-sm">
-                  <div>
-                    <dt className="text-xs text-muted">Confidence</dt>
-                    <dd>
-                      <Confidence value={item.confidence} />
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs text-muted">Infection rate</dt>
-                    <dd className="font-semibold text-danger">{item.infection_rate}%</dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs text-muted">Total cells</dt>
-                    <dd className="text-ink-2">{item.total_cells.toLocaleString()}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs text-muted">Infected</dt>
-                    <dd className="font-semibold text-danger">{item.infected_cells.toLocaleString()}</dd>
-                  </div>
-                </dl>
+                {r.annotated ? (
+                  <dl className="grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <dt className="text-xs text-muted">Nuclei</dt>
+                      <dd className="text-ink-2">{r.nuclei}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs text-muted">Dots per nucleus</dt>
+                      <dd className="font-semibold text-ink">{r.dots_per_nucleus != null ? r.dots_per_nucleus.toFixed(2) : '–'}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs text-muted">Clusters</dt>
+                      <dd className="text-ink-2">{r.clusters}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs text-muted">Satellites</dt>
+                      <dd className="text-ink-2">{r.satellites}</dd>
+                    </div>
+                  </dl>
+                ) : (
+                  <p className="text-sm text-muted">No expert counts (not a reference picture).</p>
+                )}
               </li>
             ))}
           </ul>
@@ -275,7 +291,7 @@ const ResultDashboard = ({ data, setshowResult, previews = {} }: DashboardProps)
 
         <div className="flex justify-center pb-6">
           <Button variant="secondary" onClick={close} icon={<ArrowLeft className="h-4 w-4" />}>
-            Back to pipeline
+            Back
           </Button>
         </div>
       </div>

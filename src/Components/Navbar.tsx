@@ -43,6 +43,7 @@ const Navbar = () => {
   const links = [
     { to: '/', label: 'Home', end: true },
     { to: '/about', label: 'About' },
+    { to: '/learn', label: 'How it works' },
     { to: '/sample-images', label: 'Sample Images' },
     { to: '/contact', label: 'Contact' },
     ...(isAuth

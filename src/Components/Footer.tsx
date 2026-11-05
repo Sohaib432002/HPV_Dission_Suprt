@@ -14,6 +14,7 @@ const Footer = () => {
       links: [
         { to: '/', label: 'Home' },
         { to: '/about', label: 'About HPV' },
+        { to: '/learn', label: 'How it works' },
         { to: '/sample-images', label: 'Sample images' },
         { to: '/contact', label: 'Contact' },
       ],

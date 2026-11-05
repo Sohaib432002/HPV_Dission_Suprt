@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import {
   Activity,
   ArrowRight,
@@ -34,7 +34,7 @@ const whySimulation: { icon: LucideIcon; title: string; desc: string; benefit: s
   {
     icon: Dna,
     title: 'Biological System Modeling',
-    desc: 'Simulate interactions between healthy cells, infected cells, and immune responses to understand viral behavior and disease progression.',
+    desc: 'Sort a population into healthy, vaccinated, infected, recovered and cancer groups and watch how people move between them over time.',
     benefit: 'Explore mechanisms • Predict viral behavior • Identify intervention points',
   },
   {
@@ -60,17 +60,17 @@ const workflow: { icon: LucideIcon; title: string; desc: string }[] = [
   {
     icon: Brain,
     title: 'Cell Classification',
-    desc: 'Deep learning models analyze each cell and classify it as healthy, infected, or abnormal, using cellular morphology and staining patterns.',
+    desc: 'Expert counts of nuclei and AgNOR dots are looked up for reference pictures, and an AI compares each picture with 15 reference slides.',
   },
   {
     icon: SlidersHorizontal,
     title: 'Parameter Estimation',
-    desc: 'From classified cells, the system calculates infection metrics such as the proportion of infected cells, which become epidemiological model parameters.',
+    desc: 'The result shows dots per nucleus and where it sits among all reference pictures. It is a research marker, not an HPV test.',
   },
   {
     icon: TrendingUp,
     title: 'Simulation & Prediction',
-    desc: 'Estimated parameters feed a mathematical model to simulate HPV dynamics, test interventions and predict long-term disease progression.',
+    desc: 'You choose the model settings (vaccination, spread, recovery) yourself and explore what-if scenarios. They are not measured from your pictures.',
   },
 ]
 
@@ -381,18 +381,18 @@ const Home = () => {
             </h2>
             <div className="mt-5 space-y-4 text-base leading-relaxed text-ink-2">
               <p>
-                Advanced artificial intelligence models interpret complex cervical microscopy data
-                with high precision, identifying subtle cellular patterns linked to HPV infection.
+                Reference microscopy pictures come with expert counts of cell nuclei and AgNOR dots.
+                An AI network compares new pictures with 15 reference slides.
               </p>
               <p>
-                Using deep learning classification, cells are automatically categorized into{' '}
-                <strong className="text-ink">healthy</strong> and{' '}
-                <strong className="text-ink">infected</strong> groups, enabling accurate
-                quantification of infection severity.
+                The AI was trained on only 15 women, so it is a{' '}
+                <strong className="text-ink">demonstration of the technique</strong>, not a way to
+                find HPV or diagnose disease. See{' '}
+                <Link to="/learn" className="font-semibold text-brand underline">how it works</Link>.
               </p>
               <p>
-                These insights feed directly into simulation models, allowing biologically realistic
-                predictions of HPV progression and supporting data-driven medical research.
+                The simulation lab is a separate what-if tool that shows how vaccination and spread
+                could change an epidemic if your chosen numbers were true.
               </p>
             </div>
             <div className="mt-6 flex flex-wrap gap-2">

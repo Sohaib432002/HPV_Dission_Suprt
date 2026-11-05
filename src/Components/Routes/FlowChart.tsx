@@ -11,7 +11,6 @@ type FlowChartProps = {
   mainResult: any
   setshowResult: React.Dispatch<React.SetStateAction<boolean>>
   Result: any
-  InfectionRate: any
   params: any
   setParams: any
   handlePredictionSubmit: any
@@ -63,7 +62,6 @@ function Step({
 /** Vertical pipeline: analyse images → review results → configure and run the simulation. */
 const FlowChart = ({
   mainResult,
-  InfectionRate,
   setshowResult,
   params,
   setParams,
@@ -72,11 +70,10 @@ const FlowChart = ({
   const [InputUser, setInputUser] = useState<boolean>(false)
 
   const analysed = mainResult != null
-  const hasRate = InfectionRate != null
 
   return (
     <ol>
-      <Step index={1} title="Checking your cell pictures" state={analysed ? 'done' : 'active'}>
+      <Step index={1} title="Checking your pictures" state={analysed ? 'done' : 'active'}>
         {analysed ? (
           <div className="space-y-3">
             <CompletedAnimation label="Analysis complete" />
@@ -85,23 +82,22 @@ const FlowChart = ({
             </Button>
           </div>
         ) : (
-          <Processing label="Counting infected cells. This can take a short while…" />
+          <Processing label="Looking up counts and comparing with reference slides…" />
         )}
       </Step>
 
       <Step
         index={2}
-        title="Choose the numbers for the forecast"
-        state={!hasRate ? 'pending' : InputUser ? 'done' : 'active'}
+        title="Try a what-if forecast (optional)"
+        state={!analysed ? 'pending' : InputUser ? 'done' : 'active'}
         last
       >
-        {hasRate &&
+        {analysed &&
           (!InputUser ? (
             <InputForm
               handlePredictionSubmit={handlePredictionSubmit}
               setParams={setParams}
               params={params}
-              InfectionRate={InfectionRate}
               setInputUser={setInputUser}
             />
           ) : (

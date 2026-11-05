@@ -46,8 +46,8 @@ const NODES: ModelNode[] = [
     y: 150,
     tone: 'text-danger',
     description:
-      'Actively infected individuals. A fraction η recovers naturally, while the remaining (1−η) progress toward cervical cancer (C).',
-    formula: 'dI/dt = (1−m)βS₂I − ηI − (1−η)I − μI',
+      'Actively infected individuals. A fraction η = 1−c recovers naturally, while a small share c progresses toward cervical cancer (C).',
+    formula: 'dI/dt = (1−m)βS₂I − (μ+1)I',
   },
   {
     id: 'R',
@@ -69,7 +69,7 @@ const NODES: ModelNode[] = [
     tone: 'text-warn',
     description:
       'Individuals who have progressed to cervical cancer due to persistent HPV infection. This compartment represents the severe outcome of untreated infection.',
-    formula: 'dC/dt = (1−η)I − μ_c·C',
+    formula: 'dC/dt = cI − μC',
   },
 ]
 
@@ -78,7 +78,7 @@ const PARAMS: [string, string][] = [
   ['δ', 'vaccination rate'],
   ['β', 'transmission rate'],
   ['m', 'vaccine efficacy'],
-  ['η', 'recovery rate'],
+  ['c', 'share of infections that become cancer (η = 1−c recovers)'],
   ['μ', 'natural death rate'],
 ]
 
@@ -124,7 +124,7 @@ export default function HPVModelDiagram() {
           <Arrow d="M176 150 H262" label="δ" lx={219} ly={136} />
           <Arrow d="M356 150 H442" label="(1−m)βS₂I" lx={399} ly={136} />
           <Arrow d="M536 150 H622" label="η" lx={579} ly={136} />
-          <Arrow d="M490 196 V272" label="(1−η)" lx={522} ly={238} />
+          <Arrow d="M490 196 V272" label="c" lx={522} ly={238} />
           <Arrow d="M310 106 Q490 20 670 106" label="mS₂" lx={490} ly={50} />
 
           {NODES.map((n) => {

@@ -13,7 +13,6 @@ import { useMemo, useRef, useState } from 'react'
 import { Calculator, CheckCircle2, Circle, Download, ExternalLink, FileDown, Info, Loader2, RefreshCw, TriangleAlert } from 'lucide-react'
 
 import { generateProfessionalPDF } from './Report'
-import { PieChartForPDF, LineChartForPDF } from './PdfCharts'
 import { useTheme } from '../ThemeContext'
 import { Badge, Button, InfoTip, Modal, Spinner, buttonClass, useToast } from '../ui'
 
@@ -156,10 +155,7 @@ const SimulationChart = ({
         patient_id: String(user?.user_id || 'Unknown'),
         age: user?.age ? parseInt(String(user.age), 10) : 0,
         gender: user?.gender || 'Unknown',
-        overall_infection_rate: mainResult.overall_infection_rate,
-        total_cells: mainResult.total_cells,
-        total_infected_cells: mainResult.total_infected_cells,
-        image_results: mainResult.image_results,
+        analysis: mainResult,
         S_1_Cal: data.data.S_1,
         S_2_Cal: data.data.S_2,
         I_Cal: data.data.I_eq,
@@ -476,18 +472,6 @@ const SimulationChart = ({
         </div>
       </Modal>
 
-      {/* Off-screen charts captured into the PDF report */}
-      <div style={{ position: 'absolute', top: -9999, left: -9999 }} aria-hidden>
-        <div>
-          <PieChartForPDF
-            total_cells={mainResult?.total_cells}
-            total_infected_cells={mainResult?.total_infected_cells}
-          />
-        </div>
-        <div>
-          <LineChartForPDF data={chartData} />
-        </div>
-      </div>
     </>
   )
 }

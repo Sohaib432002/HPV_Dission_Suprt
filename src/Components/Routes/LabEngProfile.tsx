@@ -104,7 +104,7 @@ export default function LabEngineerDashboard() {
       <div className="grid gap-4 sm:grid-cols-3">
         <StatCard label="Total patients" value={loading ? '–' : patients.length} icon={Users} />
         <StatCard label="Processed cases" value={loading ? '–' : reports.length} icon={Activity} tone="info" />
-        <StatCard label="Accuracy" value="84%" icon={BarChart3} tone="violet" />
+        <StatCard label="Reference pictures" value="9,339" icon={BarChart3} tone="violet" />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">

@@ -58,7 +58,7 @@ const DEFAULTS = {
   transitionRate: 0.1,
   recoveryProportion: 0.98,
   cancerProgressionRate: 0.003,
-  stepSize: 1,
+  stepSize: 0.1,
 }
 
 /** Compartment flow chart (A → S1 → S2 → I → R, with I → C and S2 → R). */
@@ -167,13 +167,13 @@ const AppSimulation = () => {
   }
 
   const params = [
-    { key: 'recruitmentRate', label: 'Growth rate (α)', hint: 'How quickly new people join the group each year.', min: 0.001, max: 50, step: 0.001 },
+    { key: 'recruitmentRate', label: 'New people entering (A)', hint: 'How many new people join the group each month.', min: 0.001, max: 50, step: 0.001 },
     { key: 'transmissionRate', label: 'Transmission rate (β)', hint: 'How easily the virus passes from one person to another. Higher means it spreads faster.', min: 0.001, max: 3, step: 0.001 },
-    { key: 'naturalDeathRate', label: 'Natural death rate (μ)', hint: 'How many people leave the group each year for natural reasons.', min: 0.001, max: 3, step: 0.001 },
-    { key: 'transitionRate', label: 'Transition rate (δ)', hint: 'How quickly unprotected people move to the next stage (for example by being vaccinated).', min: 0.001, max: 3, step: 0.001 },
-    { key: 'recoveryProportion', label: 'Recovery proportion (m)', hint: 'The share of people who recover on their own. 1 means everyone.', min: 0.001, max: 3, step: 0.001 },
-    { key: 'cancerProgressionRate', label: 'Cancer progression rate (n)', hint: 'How quickly an infection can turn into cancer. Keep this low for realistic results.', min: 0.001, max: 3, step: 0.001 },
-    { key: 'stepSize', label: 'Step size (h)', hint: 'How big each calculation step is. Smaller steps are more careful but slower. If unsure, leave it at 1.', min: 1, max: 500, step: 1, decimals: 0 },
+    { key: 'naturalDeathRate', label: 'Natural death rate (μ)', hint: 'How many people leave the group each month for natural reasons.', min: 0.001, max: 3, step: 0.001 },
+    { key: 'transitionRate', label: 'Vaccination rate (δ)', hint: 'How quickly unvaccinated people get vaccinated.', min: 0.001, max: 3, step: 0.001 },
+    { key: 'recoveryProportion', label: 'Vaccine protection (m)', hint: 'Share of vaccinated people who are protected. 1 means fully protected.', min: 0.001, max: 1, step: 0.001 },
+    { key: 'cancerProgressionRate', label: 'Infections that turn into cancer (c)', hint: 'Share of infections that become cancer. All the others clear on their own. In real life this is very small.', min: 0.001, max: 1, step: 0.001 },
+    { key: 'stepSize', label: 'Step size (h)', hint: 'How big each calculation step is. Smaller steps are more careful but slower. If unsure, leave it at 0.1. Euler needs small steps.', min: 0.05, max: 500, step: 0.05, decimals: 2 },
   ] as const
 
   return (
