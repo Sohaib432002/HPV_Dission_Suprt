@@ -361,6 +361,9 @@ const Learn = () => (
             <LinkButton to="/future-predict" size="lg">
               Analyse pictures
             </LinkButton>
+            <Link to="/maths" className="inline-flex h-12 items-center px-4 font-semibold text-white/80 hover:text-white">
+              Read the maths explained
+            </Link>
             <Link to="/simulation" className="inline-flex h-12 items-center px-4 font-semibold text-white/80 hover:text-white">
               Open the what-if lab
             </Link>

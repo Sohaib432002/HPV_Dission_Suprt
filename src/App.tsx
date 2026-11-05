@@ -11,6 +11,7 @@ const About = lazy(() => import('./Components/Routes/about'))
 const Contact = lazy(() => import('./Components/Routes/Contact'))
 const AppSimulation = lazy(() => import('./Components/Routes/AppSimulation'))
 const FuturePredict = lazy(() => import('./Components/Routes/FuturePredict'))
+const Maths = lazy(() => import('./Components/Routes/Maths'))
 const Learn = lazy(() => import('./Components/Routes/Learn'))
 const SampleImages = lazy(() => import('./Components/Routes/SampleImages'))
 const SignUp = lazy(() => import('./Components/Routes/SignUp'))
@@ -28,6 +29,7 @@ export default function App() {
         <Route path="contact" element={<Contact />} />
         <Route path="future-predict" element={<FuturePredict />} />
         <Route path="learn" element={<Learn />} />
+        <Route path="maths" element={<Maths />} />
         <Route path="sample-images" element={<SampleImages />} />
         <Route path="SignUp" element={<SignUp />} />
         <Route path="Login" element={<Login />} />

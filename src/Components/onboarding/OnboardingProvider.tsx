@@ -37,9 +37,9 @@ const steps: Step[] = [
           cervical cancer.
         </p>
         <p>
-          <strong className="text-ink">This website looks at microscope pictures of cervical cells</strong>, tells you
-          how many of the cells show signs of HPV, and{' '}
-          <strong className="text-ink">shows a simple graph of how the infection could spread</strong> over the coming years.
+          <strong className="text-ink">This website shows microscope pictures of cervical cells</strong> with the dots
+          experts counted in them (not an HPV test), and{' '}
+          <strong className="text-ink">lets you explore a what-if graph of how HPV could spread</strong> over the coming years.
         </p>
         <p className="rounded-xl bg-surface-2 p-3.5 text-xs">
           This is a research tool. It does not replace a doctor, and results should always be

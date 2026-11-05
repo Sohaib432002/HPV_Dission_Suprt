@@ -15,6 +15,7 @@ const Footer = () => {
         { to: '/', label: 'Home' },
         { to: '/about', label: 'About HPV' },
         { to: '/learn', label: 'How it works' },
+        { to: '/maths', label: 'The maths explained' },
         { to: '/sample-images', label: 'Sample images' },
         { to: '/contact', label: 'Contact' },
       ],
