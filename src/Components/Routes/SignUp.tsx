@@ -5,6 +5,7 @@ import { FlaskConical, TriangleAlert, UserRound } from 'lucide-react'
 import { AuthShell } from '../ui/AuthShell'
 import { PasswordInput } from '../ui/PasswordInput'
 import { Button, Field, Input, Select, useToast } from '../ui'
+import { GoogleButton } from '../ui/GoogleButton'
 import { apiFetch } from '../../lib/api'
 
 const roles = [
@@ -100,6 +101,7 @@ const Signup = () => {
         </>
       }
     >
+      <GoogleButton role={form.role} onError={setError} />
       <form onSubmit={handleSubmit} className="space-y-5">
         {error && (
           <div

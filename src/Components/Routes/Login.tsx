@@ -5,6 +5,7 @@ import { TriangleAlert } from 'lucide-react'
 import { AuthShell } from '../ui/AuthShell'
 import { PasswordInput } from '../ui/PasswordInput'
 import { Button, Field, Input } from '../ui'
+import { GoogleButton } from '../ui/GoogleButton'
 import { apiFetch } from '../../lib/api'
 import { setTokens } from '../../lib/auth'
 
@@ -57,6 +58,7 @@ const Login = () => {
         </>
       }
     >
+      <GoogleButton onError={setError} />
       <form onSubmit={handleSubmit} className="space-y-5" noValidate={false}>
         {error && (
           <div
