@@ -39,10 +39,10 @@ const spread = [
 ]
 
 const equations: [string, string, string][] = [
-  ['dS₁/dt', 'A − (δ + μ) S₁', 'Newly susceptible population'],
-  ['dS₂/dt', 'δ S₁ − (μ + m) S₂ − (1−m) β S₂ I', 'Susceptible at risk'],
+  ['dS₁/dt', 'A − (δ + μ) S₁', 'Susceptible children'],
+  ['dS₂/dt', 'δ S₁ − (μ + m) S₂ − (1−m) β S₂ I', 'Susceptible adults'],
   ['dI/dt', '(1−m) β S₂ I − (μ + 1) I', 'Infected population'],
-  ['dR/dt', 'm S₂ + n I − μ R', 'Recovered population'],
+  ['dR/dt', 'm S₂ + n I − μ R', 'Recovered or vaccine-immune'],
   ['dC/dt', '(1−n) I − μ C', 'Cancerous population'],
 ]
 
@@ -188,9 +188,9 @@ const About = () => {
                 evaluate prevention strategies such as vaccination or screening programs.
               </p>
               <p>
-                Here, <strong className="text-ink">S</strong> represents susceptible cells,{' '}
-                <strong className="text-ink">I</strong> infected cells, and{' '}
-                <strong className="text-ink">C</strong> cancerous cells. The equations show how each
+                Here, <strong className="text-ink">S₁</strong> and <strong className="text-ink">S₂</strong> are susceptible children and adults,{' '}
+                <strong className="text-ink">I</strong> infected people, <strong className="text-ink">R</strong> recovered or vaccine-immune people, and{' '}
+                <strong className="text-ink">C</strong> cervical cancer cases. The equations show how each
                 compartment evolves over time based on infection rates, recovery, and progression to
                 cancer.
               </p>

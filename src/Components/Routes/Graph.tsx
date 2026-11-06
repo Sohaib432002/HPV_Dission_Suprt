@@ -30,8 +30,8 @@ interface SimulationChartProps {
 type SeriesKey = 'S1' | 'S2' | 'Infected' | 'Recovered' | 'Cancer' | 'Rt'
 
 const SERIES: { key: SeriesKey; label: string; name: string; color: string }[] = [
-  { key: 'S1', label: 'S1 Population', name: 'S1 Population', color: '#3b82f6' },
-  { key: 'S2', label: 'S2 Population', name: 'S2 Population', color: '#10b981' },
+  { key: 'S1', label: 'S1 Children', name: 'S1 Children', color: '#3b82f6' },
+  { key: 'S2', label: 'S2 Adults', name: 'S2 Adults', color: '#10b981' },
   { key: 'Infected', label: 'Infected', name: 'Infected', color: '#ef4444' },
   { key: 'Recovered', label: 'Recovered', name: 'Recovered', color: '#8b5cf6' },
   { key: 'Cancer', label: 'Cancer cases', name: 'Cancer Cases', color: '#64748b' },
@@ -307,10 +307,10 @@ const SimulationChart = ({
             <details className="mt-4 rounded-xl border border-line bg-surface-2 p-4 text-sm text-ink-2">
               <summary className="cursor-pointer font-semibold text-ink">What do these lines mean?</summary>
               <ul className="mt-3 space-y-1.5 leading-relaxed">
-                <li><strong className="text-ink">S1 Population:</strong> healthy people who are not vaccinated.</li>
-                <li><strong className="text-ink">S2 Population:</strong> healthy people who are vaccinated.</li>
+                <li><strong className="text-ink">S1 Children:</strong> healthy children who later become susceptible adults.</li>
+                <li><strong className="text-ink">S2 Adults:</strong> healthy adults who can catch HPV. A share m is vaccinated and protected.</li>
                 <li><strong className="text-ink">Infected:</strong> people who currently have HPV.</li>
-                <li><strong className="text-ink">Recovered:</strong> people who got better or are protected.</li>
+                <li><strong className="text-ink">Recovered:</strong> people who cleared HPV or are protected by the vaccine.</li>
                 <li><strong className="text-ink">Cancer cases:</strong> people whose infection has turned into cancer.</li>
                 <li><strong className="text-ink">Rₜ:</strong> how many people one infected person passes the virus to right now.</li>
               </ul>

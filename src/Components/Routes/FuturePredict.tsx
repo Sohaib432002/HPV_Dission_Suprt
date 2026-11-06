@@ -14,7 +14,7 @@ type FormParams = {
   natural_death_rate: number | ''
   transition_rate: number | ''
   recovery_proportion: number | ''
-  cancer_progression_rate: number | ''
+  recovery_share: number | ''
   stepSize: number | ''
   transmission_rate: number | ''
 }
@@ -42,7 +42,7 @@ const FuturePredict = () => {
     transition_rate: 0.1,
     transmission_rate: 0.42,
     recovery_proportion: 0.98,
-    cancer_progression_rate: 0.003,
+    recovery_share: 0.003,
     stepSize: 0.1,
   })
 

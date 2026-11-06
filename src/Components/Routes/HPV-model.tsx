@@ -19,23 +19,23 @@ const NODES: ModelNode[] = [
   {
     id: 'S1',
     label: 'S₁',
-    sublabel: 'Unvaccinated',
+    sublabel: 'Children',
     x: 130,
     y: 150,
     tone: 'text-info',
     description:
-      'Susceptible individuals who have NOT received the HPV vaccine. They are fully exposed to infection risk through contact with infected individuals.',
+      'Susceptible children (about 1 to 10 years). They are not sexually active, so they are not yet exposed. They move to S₂ as they grow up (rate δ).',
     formula: 'dS₁/dt = A − δS₁ − μS₁',
   },
   {
     id: 'S2',
     label: 'S₂',
-    sublabel: 'Vaccinated',
+    sublabel: 'Adults',
     x: 310,
     y: 150,
     tone: 'text-brand',
     description:
-      'Susceptible individuals who have received the HPV vaccine. They have reduced — but not zero — risk of infection. A fraction m gets full immunity and moves directly to R.',
+      'Susceptible adults. They can catch HPV from infected people. A proportion m is vaccinated: that share is fully protected and moves to R, and infection is reduced by the factor (1−m).',
     formula: 'dS₂/dt = δS₁ − (1−m)βS₂I − mS₂ − μS₂',
   },
   {
@@ -46,7 +46,7 @@ const NODES: ModelNode[] = [
     y: 150,
     tone: 'text-danger',
     description:
-      'Actively infected individuals. A fraction η = 1−c recovers naturally, while a small share c progresses toward cervical cancer (C).',
+      'Actively infected individuals. A proportion n clears HPV and recovers, while the remaining (1−n) progress toward cervical cancer (C).',
     formula: 'dI/dt = (1−m)βS₂I − (μ+1)I',
   },
   {
@@ -57,8 +57,8 @@ const NODES: ModelNode[] = [
     y: 150,
     tone: 'text-violet',
     description:
-      'Recovered and immune individuals — either through natural recovery from infection (ηI) or via vaccine-derived immunity (mS₂).',
-    formula: 'dR/dt = ηI + mS₂ − μR',
+      'Recovered and immune individuals — either through natural recovery from infection (nI) or via vaccine-derived immunity (mS₂).',
+    formula: 'dR/dt = nI + mS₂ − μR',
   },
   {
     id: 'C',
@@ -69,16 +69,16 @@ const NODES: ModelNode[] = [
     tone: 'text-warn',
     description:
       'Individuals who have progressed to cervical cancer due to persistent HPV infection. This compartment represents the severe outcome of untreated infection.',
-    formula: 'dC/dt = cI − μC',
+    formula: 'dC/dt = (1−n)I − μC',
   },
 ]
 
 const PARAMS: [string, string][] = [
   ['A', 'recruitment rate'],
-  ['δ', 'vaccination rate'],
+  ['δ', 'ageing rate (children become adults)'],
   ['β', 'transmission rate'],
-  ['m', 'vaccine efficacy'],
-  ['c', 'share of infections that become cancer (η = 1−c recovers)'],
+  ['m', 'proportion vaccinated'],
+  ['n', 'recovery proportion (1−n become cancer)'],
   ['μ', 'natural death rate'],
 ]
 
@@ -123,8 +123,8 @@ export default function HPVModelDiagram() {
           <Arrow d="M20 150 H86" label="A" lx={53} ly={136} />
           <Arrow d="M176 150 H262" label="δ" lx={219} ly={136} />
           <Arrow d="M356 150 H442" label="(1−m)βS₂I" lx={399} ly={136} />
-          <Arrow d="M536 150 H622" label="η" lx={579} ly={136} />
-          <Arrow d="M490 196 V272" label="c" lx={522} ly={238} />
+          <Arrow d="M536 150 H622" label="n" lx={579} ly={136} />
+          <Arrow d="M490 196 V272" label="(1−n)" lx={522} ly={238} />
           <Arrow d="M310 106 Q490 20 670 106" label="mS₂" lx={490} ly={50} />
 
           {NODES.map((n) => {

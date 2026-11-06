@@ -16,7 +16,7 @@ const cheatSheet = [
   ['Cluster / satellite', 'A cluster is a group of touching dots. A satellite is a single small dot.'],
   ['Dots per nucleus', 'Total dots divided by the number of nuclei. A research marker of how active the cells are.'],
   ['Closest slide', "The AI's top guess among 15 reference slides. In our spot check it was often not the true slide, so treat it as a demo. It is not a diagnosis."],
-  ['S1, S2, I, R, C', 'Groups of people in the model: healthy, vaccinated, infected, recovered, cancer.'],
+  ['S1, S2, I, R, C', 'Groups of people in the model: children, adults, infected, recovered or vaccine-immune, cancer.'],
   ['R0', 'How many people one infected person passes HPV to. Above 1 it spreads; below 1 it fades.'],
 ]
 
@@ -53,23 +53,23 @@ function PeopleMap() {
           <path d="M0 0 L8 4 L0 8 Z" className="fill-muted" />
         </marker>
       </defs>
-      {box(24, 110, 'S1', 'Healthy, not vaccinated', 'text-info')}
-      {box(182, 110, 'S2', 'Healthy, vaccinated', 'text-brand')}
+      {box(24, 110, 'S1', 'Susceptible children', 'text-info')}
+      {box(182, 110, 'S2', 'Susceptible adults', 'text-brand')}
       {box(340, 110, 'I', 'Infected with HPV', 'text-danger')}
-      {box(524, 110, 'R', 'Recovered, protected', 'text-violet')}
+      {box(524, 110, 'R', 'Recovered or vaccine-immune', 'text-violet')}
       {box(340, 250, 'C', 'Became cancer', 'text-warn')}
       {arrow('M4 139 H22')}
-      {text(14, 100, 'New people', 'middle')}
+      {text(14, 100, 'New children', 'middle')}
       {arrow('M156 139 H180')}
-      {text(168, 102, 'Vaccinated')}
+      {text(168, 102, 'Grow up (δ)')}
       {arrow('M314 139 H338')}
       {text(326, 102, 'Catch HPV')}
       {arrow('M472 139 H522')}
-      {text(497, 102, 'Clear it')}
+      {text(497, 102, 'Clear it (n)')}
       {arrow('M406 168 V248')}
-      {text(448, 214, 'A small share')}
+      {text(452, 214, 'The rest (1−n)')}
       {arrow('M248 108 Q390 30 590 108')}
-      {text(420, 52, 'Vaccine protects fully')}
+      {text(420, 52, 'Vaccinated share (m)')}
     </svg>
   )
 }
@@ -94,7 +94,7 @@ function WhatIf() {
           <label className="block">
             <span className="flex items-center justify-between text-sm font-semibold text-ink">
               <span>
-                Vaccine protection <InfoTip>The share of vaccinated people who are protected. 1 means fully protected.</InfoTip>
+                Proportion vaccinated (m) <InfoTip>The share of adults who are vaccinated and protected. 1 means everyone.</InfoTip>
               </span>
               <span className="font-mono">{m.toFixed(2)}</span>
             </span>
@@ -137,7 +137,7 @@ function WhatIf() {
         <summary className="cursor-pointer font-semibold text-ink">Show the formula</summary>
         <p className="mt-3 font-mono text-[13px]">R0 = (1 − m) · β · δ · A / ((μ + 1) · (δ + μ) · (μ + m))</p>
         <p className="mt-2">
-          Here δ = 0.1 (vaccination rate), μ = 0.014 (natural death rate) and A = 50 (new people per month), the same
+          Here δ = 0.1 (ageing rate), μ = 0.014 (natural death rate) and A = 50 (new children per unit of time), the same
           starting values as the simulation lab.
         </p>
       </details>
@@ -292,7 +292,7 @@ const Learn = () => (
         </Card>
         <ul className="mx-auto mt-6 grid max-w-4xl gap-3 text-sm text-ink-2 sm:grid-cols-2">
           <li>
-            <strong className="text-ink">Why most people end up in “Recovered”:</strong> almost every HPV infection clears on its own. Only a very small share (the setting “infections that turn into cancer”) reaches C.
+            <strong className="text-ink">Why most people end up in “Recovered”:</strong> in real life almost every HPV infection clears on its own. In the project report the setting n = 0.003 sends almost every infection to C instead. You can change n in the lab.
           </li>
           <li>
             <strong className="text-ink">Why three solvers?</strong> They are three ways of doing the same arithmetic. They should agree, and if one looks odd you can try another.

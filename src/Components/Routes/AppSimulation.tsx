@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Activity, FlaskConical, LineChart, RotateCcw } from 'lucide-react'
 import SimulationChart from './Graph'
+import { PRESETS } from '../../lib/presets'
 import {
   Button,
   Card,
@@ -57,7 +58,7 @@ const DEFAULTS = {
   naturalDeathRate: 0.014,
   transitionRate: 0.1,
   recoveryProportion: 0.98,
-  cancerProgressionRate: 0.003,
+  recoveryShare: 0.003,
   stepSize: 0.1,
 }
 
@@ -99,9 +100,9 @@ function ModelFlow() {
       {arrow('M342 155 H418')}
       {text(380, 142, '(1−m)βS₂I')}
       {arrow('M502 155 H578')}
-      {text(540, 142, 'ηI')}
+      {text(540, 142, 'nI')}
       {arrow('M460 182 V248')}
-      {text(494, 218, '(1−η)I')}
+      {text(494, 218, '(1−n)I')}
       {arrow('M300 128 Q460 40 620 128')}
       {text(460, 66, 'mS₂')}
     </svg>
@@ -140,7 +141,7 @@ const AppSimulation = () => {
           natural_death_rate: p.naturalDeathRate,
           transition_rate: p.transitionRate,
           recovery_proportion: p.recoveryProportion,
-          cancer_progression_rate: p.cancerProgressionRate,
+          recovery_share: p.recoveryShare,
           stepSize: p.stepSize,
         }),
       })
@@ -167,12 +168,12 @@ const AppSimulation = () => {
   }
 
   const params = [
-    { key: 'recruitmentRate', label: 'New people entering (A)', hint: 'How many new people join the group each month.', min: 0.001, max: 50, step: 0.001 },
+    { key: 'recruitmentRate', label: 'Recruitment rate (A)', hint: 'New children entering the youngest group (S₁) in each unit of time.', min: 0.001, max: 50, step: 0.001 },
     { key: 'transmissionRate', label: 'Transmission rate (β)', hint: 'How easily the virus passes from one person to another. Higher means it spreads faster.', min: 0.001, max: 3, step: 0.001 },
-    { key: 'naturalDeathRate', label: 'Natural death rate (μ)', hint: 'How many people leave the group each month for natural reasons.', min: 0.001, max: 3, step: 0.001 },
-    { key: 'transitionRate', label: 'Vaccination rate (δ)', hint: 'How quickly unvaccinated people get vaccinated.', min: 0.001, max: 3, step: 0.001 },
-    { key: 'recoveryProportion', label: 'Vaccine protection (m)', hint: 'Share of vaccinated people who are protected. 1 means fully protected.', min: 0.001, max: 1, step: 0.001 },
-    { key: 'cancerProgressionRate', label: 'Infections that turn into cancer (c)', hint: 'Share of infections that become cancer. All the others clear on their own. In real life this is very small.', min: 0.001, max: 1, step: 0.001 },
+    { key: 'naturalDeathRate', label: 'Natural death rate (μ)', hint: 'How many people leave every group for natural reasons.', min: 0.001, max: 3, step: 0.001 },
+    { key: 'transitionRate', label: 'Ageing rate (δ)', hint: 'How quickly children grow into the adult group (S₁ to S₂).', min: 0.001, max: 3, step: 0.001 },
+    { key: 'recoveryProportion', label: 'Vaccination proportion (m)', hint: 'Share of adults who are vaccinated and protected. 1 means everyone.', min: 0.001, max: 1, step: 0.001 },
+    { key: 'recoveryShare', label: 'Recovery proportion (n)', hint: 'Share of infections that clear on their own. The rest (1 − n) turn into cancer. The report uses 0.003; real HPV infections mostly clear, so try 0.9 or more.', min: 0.001, max: 1, step: 0.001 },
     { key: 'stepSize', label: 'Step size (h)', hint: 'How big each calculation step is. Smaller steps are more careful but slower. If unsure, leave it at 0.1. Euler needs small steps.', min: 0.05, max: 500, step: 0.05, decimals: 2 },
   ] as const
 
@@ -204,6 +205,33 @@ const AppSimulation = () => {
             description="Drag a slider or type an exact number."
             icon={Activity}
           />
+          <div className="border-b border-line px-5 py-4 sm:px-6">
+            <p className="text-xs font-bold uppercase tracking-[0.12em] text-muted">Start from an example</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {PRESETS.map((pr) => (
+                <button
+                  key={pr.id}
+                  type="button"
+                  title={pr.note}
+                  onClick={() => {
+                    setP((prev) => ({
+                      ...prev,
+                      recruitmentRate: pr.values.recruitment_rate,
+                      transmissionRate: pr.values.transmission_rate,
+                      naturalDeathRate: pr.values.natural_death_rate,
+                      transitionRate: pr.values.transition_rate,
+                      recoveryProportion: pr.values.recovery_proportion,
+                      recoveryShare: pr.values.recovery_share,
+                    }))
+                    setData(null)
+                  }}
+                  className="rounded-full border border-line px-3 py-1.5 text-xs font-semibold text-ink-2 transition-colors hover:border-brand hover:text-brand"
+                >
+                  {pr.label}
+                </button>
+              ))}
+            </div>
+          </div>
           <div className="scrollbar-thin max-h-[520px] space-y-5 overflow-y-auto p-5 sm:p-6">
             {params.map(({ key, ...rest }) => (
               <ParamSlider key={key} {...rest} value={p[key]} onChange={set(key)} />

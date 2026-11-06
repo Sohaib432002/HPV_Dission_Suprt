@@ -387,10 +387,10 @@ function drawSummaryTable(d: Doc, props: PDFReportProps) {
     { name: 'Nuclei counted', value: a.annotated_images ? a.nuclei.toLocaleString() : '-', note: 'By experts, reference pictures only', dot: C.s2 },
     { name: 'AgNOR dots', value: a.annotated_images ? a.agnor_dots.toLocaleString() : '-', note: 'Clusters and satellites', dot: C.rec },
     { name: 'Dots per nucleus', value: a.dots_per_nucleus != null ? num(a.dots_per_nucleus, 2) : '-', note: `Reference middle: ${num(a.reference.median, 2)}`, dot: C.warn },
-    { name: 'S1 - healthy, unvaccinated', value: num(S_1_Cal, 4), note: 'Model: people not yet protected', dot: C.s1 },
-    { name: 'S2 - healthy, vaccinated', value: num(S_2_Cal, 4), note: 'Model: vaccinated, still at some risk', dot: C.s2 },
+    { name: 'S1 - susceptible children', value: num(S_1_Cal, 4), note: 'Model: children who later become adults', dot: C.s1 },
+    { name: 'S2 - susceptible adults', value: num(S_2_Cal, 4), note: 'Model: adults who can catch HPV', dot: C.s2 },
     { name: 'I - infected', value: num(I_Cal, 4), note: R0_Cal <= 1 ? 'Model: infection dies out' : 'Model: people who have HPV', dot: C.inf },
-    { name: 'R - recovered', value: num(R_Cal, 4), note: 'Model: people who recovered', dot: C.rec },
+    { name: 'R - recovered', value: num(R_Cal, 4), note: 'Model: recovered or vaccine-immune', dot: C.rec },
     { name: 'C - cancer', value: num(C_Cal, 4), note: 'Model: infection that became cancer', dot: C.can },
     { name: 'R0 - reproduction number', value: num(R0_Cal, 4), note: 'How fast the virus can spread', dot: C.brand },
   ]
@@ -432,10 +432,10 @@ function drawCompartmentBars(d: Doc, props: PDFReportProps) {
   const { p } = d
   const { S_1_Cal, S_2_Cal, I_Cal, R_Cal, C_Cal } = props
   const bars: { label: string; value: number; color: RGB }[] = [
-    { label: 'S1  Healthy, unvaccinated', value: S_1_Cal, color: C.s1 },
-    { label: 'S2  Healthy, vaccinated', value: S_2_Cal, color: C.s2 },
+    { label: 'S1  Susceptible children', value: S_1_Cal, color: C.s1 },
+    { label: 'S2  Susceptible adults', value: S_2_Cal, color: C.s2 },
     { label: 'I   Infected', value: I_Cal, color: C.inf },
-    { label: 'R   Recovered', value: R_Cal, color: C.rec },
+    { label: 'R   Recovered / immune', value: R_Cal, color: C.rec },
     { label: 'C   Cancer', value: C_Cal, color: C.can },
   ]
   const max = Math.max(...bars.map((b) => (Number.isFinite(b.value) ? Math.abs(b.value) : 0)), 1e-9)

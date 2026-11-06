@@ -34,7 +34,7 @@ const P = ({ children }: { children: ReactNode }) => <p className="text-base lea
 /* The model in code, so the live graph uses the same equations        */
 /* ------------------------------------------------------------------ */
 
-const FIXED = { A: 50, mu: 0.014, delta: 0.1, c: 0.01 }
+const FIXED = { A: 50, mu: 0.014, delta: 0.1, n: 0.003 }
 
 function equilibriumI(m: number, beta: number) {
   const { A, mu, delta } = FIXED
@@ -47,16 +47,15 @@ function equilibriumI(m: number, beta: number) {
 
 /** Non-standard finite difference run (same scheme as the server's NSFD solver). */
 function simulateInfected(m: number, beta: number, h = 0.5, horizon = 200) {
-  const { A, mu, delta, c } = FIXED
-  const eta = 1 - c
+  const { A, mu, delta, n } = FIXED
   let [S1, S2, I, R, C] = [0.6, 0.2, 0.1, 0.05, 0.05]
   const out: number[] = [I]
   for (let t = 0; t < horizon; t += h) {
     const n1 = (S1 + h * A) / (1 + h * (delta + mu))
     const n2 = (S2 + h * delta * S1) / (1 + h * (mu + m) + h * (1 - m) * beta * I)
     const nI = (I + h * (1 - m) * beta * S2 * I) / (1 + h * (mu + 1))
-    const nR = (R + h * m * S2 + h * eta * I) / (1 + h * mu)
-    const nC = (C + h * c * I) / (1 + h * mu)
+    const nR = (R + h * m * S2 + h * n * I) / (1 + h * mu)
+    const nC = (C + h * (1 - n) * I) / (1 + h * mu)
     ;[S1, S2, I, R, C] = [n1, n2, nI, nR, nC]
     out.push(I)
   }
@@ -65,8 +64,8 @@ function simulateInfected(m: number, beta: number, h = 0.5, horizon = 200) {
 
 /** Live graph: drag the sliders and watch the infected group settle at its equilibrium. */
 function LiveModel() {
-  const [m, setM] = useState(0.5)
-  const [beta, setBeta] = useState(0.42)
+  const [m, setM] = useState(0.98)
+  const [beta, setBeta] = useState(1.42)
   const { series, eq } = useMemo(() => ({ series: simulateInfected(m, beta), eq: equilibriumI(m, beta) }), [m, beta])
 
   const W = 640
@@ -100,8 +99,26 @@ function LiveModel() {
     <Card className="p-5 sm:p-7">
       <div className="grid gap-6 lg:grid-cols-[260px_1fr]">
         <div className="space-y-5">
-          {slider('Vaccine protection (m)', m, setM, 0, 1, 0.01)}
-          {slider('How easily HPV spreads (β)', beta, setBeta, 0.01, 3, 0.01)}
+          <div className="flex flex-wrap gap-2">
+            {[
+              ['Report: disease-free', 0.98, 0.42],
+              ['Report: endemic', 0.98, 1.42],
+            ].map(([label, mm, bb]) => (
+              <button
+                key={label as string}
+                type="button"
+                onClick={() => {
+                  setM(mm as number)
+                  setBeta(bb as number)
+                }}
+                className="rounded-full border border-line px-3 py-1.5 text-xs font-semibold text-ink-2 transition-colors hover:border-brand hover:text-brand"
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {slider('Proportion vaccinated (m)', m, setM, 0, 1, 0.01)}
+          {slider('Transmission rate (β)', beta, setBeta, 0.01, 3, 0.01)}
           <div className="rounded-xl bg-surface-2 p-4 text-sm text-ink-2">
             <p>
               R₀ = <strong className="font-mono text-ink">{eq.r0.toFixed(2)}</strong>
@@ -148,33 +165,33 @@ function LiveModel() {
 /* ------------------------------------------------------------------ */
 
 const groups: [string, string, string][] = [
-  ['S₁', 'Healthy, not vaccinated', 'Can catch HPV with nothing protecting them.'],
-  ['S₂', 'Healthy, vaccinated', 'Partly protected. Some become fully immune.'],
+  ['S₁', 'Susceptible children', 'About 1 to 10 years old. Not sexually active, so not exposed to HPV yet.'],
+  ['S₂', 'Susceptible adults', 'Can catch HPV. A proportion m is vaccinated and protected.'],
   ['I', 'Infected', 'Currently carry HPV and can pass it on.'],
-  ['R', 'Recovered / immune', 'Cleared the virus or were fully protected by the vaccine.'],
-  ['C', 'Cancer', 'A small share of infections that became cervical cancer.'],
+  ['R', 'Recovered / vaccine-immune', 'Cleared the virus, or were protected by the vaccine.'],
+  ['C', 'Cancer', 'Infections that progressed to cervical cancer.'],
 ]
 
 const params: [string, string, string, string][] = [
-  ['A', 'New people entering per unit time', '50', 'Births or people reaching the age group.'],
-  ['β', 'Transmission rate', '0.42', 'How easily HPV passes between people. Higher spreads faster.'],
+  ['A', 'Recruitment rate', '50', 'New children entering S₁ per unit of time.'],
+  ['β', 'Transmission rate', '0.42 or 1.42', 'How easily HPV passes between people. 0.42 is the report’s disease-free case, 1.42 its endemic case.'],
   ['μ', 'Natural death rate', '0.014', 'Everyone leaves each group at this rate.'],
-  ['δ', 'Vaccination rate', '0.1', 'How fast S₁ people become S₂.'],
-  ['m', 'Vaccine protection', '0.5', 'Between 0 and 1. 1 means fully protected.'],
-  ['c', 'Share of infections that become cancer', '0.01', 'The rest (η = 1 − c) clear on their own.'],
+  ['δ', 'Ageing rate', '0.1', 'How fast children (S₁) grow into adults (S₂).'],
+  ['m', 'Proportion vaccinated', '0.98', 'Between 0 and 1. The vaccinated share is protected and moves to R.'],
+  ['n', 'Recovery proportion', '0.003', 'Share of infections that clear. The rest (1 − n) become cancer.'],
 ]
 
 const solverRows: [string, string, string, string, string][] = [
-  ['Exact (analytic)', '438.6', '4.83', '40.81', '29.15'],
-  ['RK / LSODA', '438.6', '4.83', '40.81', '29.14'],
-  ['Euler (h = 0.1)', '438.6', '4.83', '40.81', '29.14'],
-  ['NSFD (h = 0.1)', '438.6', '4.83', '40.81', '29.14'],
+  ['Exact (analytic)', '438.6', '35.70', '8.25', '587.8'],
+  ['RK / LSODA', '438.6', '35.70', '8.25', '587.5'],
+  ['Euler (h = 0.1)', '438.6', '35.70', '8.25', '587.5'],
+  ['NSFD (h = 0.1)', '438.6', '35.70', '8.25', '587.4'],
 ]
 
 const done: [string, string][] = [
   ['One model, three solvers', 'The three solvers (RK, Euler, NSFD) used to disagree because each had slightly different equations. They now all call one shared definition, so any difference between them is only numerical error.'],
-  ['Fixed a reversed parameter', 'The old “recovery” input actually controlled the cancer share. It is now clearly c (share who get cancer) and η = 1 − c (share who clear).'],
-  ['Corrected the steady-state formulas', 'The equilibrium values (S₁*, S₂*, I*, R*, C*) are now derived from the equations. When R₀ ≤ 1 the correct answer is “no infection” and we report that.'],
+  ['Matched the project report', 'The groups and symbols now follow the report: S₁ children, S₂ adults, δ ageing rate, m proportion vaccinated, n recovery proportion. Earlier versions of this site had labelled S₁ and S₂ as unvaccinated and vaccinated. The report’s example settings are available as one-click presets.'],
+  ['Corrected the steady-state formulas', 'The equilibrium values (S₁*, S₂*, I*, R*, C*) are now derived from the equations. When R₀ ≤ 1 the correct answer is “no infection” and we report that. The report’s disease-free values are reproduced exactly.'],
   ['Stopped inventing the spread rate from images', 'β used to be computed from the “infected cells” in pictures. That count was not an infection measure, so β is now a number you choose.'],
   ['Made the solvers safe', 'Inputs are checked (for example μ must be positive, m and c between 0 and 1). If numbers blow up, you get a readable message instead of a crash. Very small step sizes are limited, and long results are thinned to at most 1,200 points.'],
   ['Checked the maths against itself', 'Automated tests confirm that a long simulation lands on the formula values, that all three solvers agree, and that bad input is rejected. 26 tests pass.'],
@@ -183,7 +200,9 @@ const done: [string, string][] = [
 const limits = [
   'Time has no fixed unit. Because infected people leave I at rate 1, one time unit is roughly one average infection.',
   'The settings are assumptions you choose. They were not fitted to real patient data, so results are “what if”, not forecasts.',
-  'One average population. There are no age groups, no separate HPV types (like 16 and 18), and no screening or treatment compartment.',
+  'Only two age groups (children and adults), no separate HPV types (like 16 and 18), and no screening or treatment compartment.',
+  'With the report’s n = 0.003 almost every infection ends as cancer (C* is bigger than R*). Real HPV infections mostly clear, so use a much larger n, such as the “Most infections clear” preset, for realistic what-ifs.',
+  'Numbers here follow the report’s printed equations, where infected people leave at rate μ + 1. The report’s tables were computed with a slightly different leave rate, so our R₀ is 0.3655 and 1.2358 where the report lists 0.3677 and 1.2432.',
   'Cancer is a one-way end state here. Real progression passes through CIN stages over many years.',
   'The pictures and the maths are separate. Nothing measured in an image feeds the equations.',
 ]
@@ -318,30 +337,29 @@ const Maths = () => {
           <div className="space-y-5">
             <div>
               <Eq>dS₁/dt = A − (δ + μ) · S₁</Eq>
-              <Say>The unvaccinated group grows by the new people (A). It shrinks when people get vaccinated (δ) or die (μ).</Say>
+              <Say>The children’s group grows by the new recruits (A). It shrinks when children grow up into adults (δ) or die (μ).</Say>
             </div>
             <div>
               <Eq>dS₂/dt = δ · S₁ − (μ + m) · S₂ − (1 − m) · β · S₂ · I</Eq>
               <Say>
-                The vaccinated group gains the people vaccinated from S₁. It loses people who die (μ), people the vaccine fully
-                protects (m, they move to R) and people who still catch HPV. The infection term has (1 − m) because
-                protection reduces it.
+                The adult group gains the children who grow up. It loses people who die (μ), the vaccinated share (m, who become
+                immune and move to R) and people who catch HPV. The infection term has (1 − m) because vaccination reduces it.
               </Say>
             </div>
             <div>
               <Eq>dI/dt = (1 − m) · β · S₂ · I − (μ + 1) · I</Eq>
               <Say>
-                New infections come from vaccinated people meeting infected people. Infected people leave at rate 1 (they
+                New infections come from susceptible adults meeting infected people. Infected people leave at rate 1 (they
                 clear the virus or progress) plus the natural death rate.
               </Say>
             </div>
             <div>
-              <Eq>dR/dt = m · S₂ + η · I − μ · R</Eq>
-              <Say>The recovered group gets the fully protected people and the share η of infected who clear HPV. People leave only by natural death.</Say>
+              <Eq>dR/dt = m · S₂ + n · I − μ · R</Eq>
+              <Say>The recovered group gets the vaccinated, protected people and the share n of infected who clear HPV. People leave only by natural death.</Say>
             </div>
             <div>
-              <Eq>dC/dt = c · I − μ · C</Eq>
-              <Say>A small share c of infected people move to the cancer group. Here η = 1 − c, so every infected person ends up in exactly one place: R or C.</Say>
+              <Eq>dC/dt = (1 − n) · I − μ · C</Eq>
+              <Say>The remaining share (1 − n) of infected people move to the cancer group, so every infected person ends up in exactly one place: R or C. (In the report n = 0.003, so almost everyone infected ends in C. Real infections mostly clear, which means a much larger n.)</Say>
             </div>
           </div>
 
@@ -352,7 +370,7 @@ const Maths = () => {
                 <Eq>{`d(S₁+S₂+I+R+C)/dt = A − μ·(S₁+S₂+I+R+C)`}</Eq>
                 <p>
                   So the total population N obeys dN/dt = A − μN and tends to N* = A/μ. With A = 50 and μ = 0.014 that is
-                  3,571. Because η + c = 1, no one is lost or created by the infection step. This is why η and c must add
+                  3,571. Because the two exits of I are n and 1 − n, no one is lost or created by the infection step. This is why they must add
                   up to 1.
                 </p>
               </Note>
@@ -412,8 +430,8 @@ const Maths = () => {
           </P>
           <Eq>{`R₀ = (1 − m) · β · δ · A  /  ( (μ + 1) · (δ + μ) · (μ + m) )`}</Eq>
           <Say>
-            More vaccine protection (m) or a lower spread rate (β) makes R₀ smaller. With the defaults R₀ ≈ 17.67, so HPV
-            spreads. Try the slider below.
+            A higher vaccinated proportion (m) or a lower spread rate (β) makes R₀ smaller. With the report’s values (m = 0.98,
+            β = 0.42) R₀ ≈ 0.37, so HPV dies out. With β = 1.42, R₀ ≈ 1.24, so it stays. Try the sliders below.
           </Say>
           {R && (
             <Note title="Derivation">
@@ -452,14 +470,15 @@ R* = m·S₂*/μ`}</Eq>
               <Eq>{`S₁* = A/(δ+μ)
 S₂* = (μ+1) / ((1−m)·β)
 I* = (δ·S₁* − (μ+m)·S₂*) / (μ+1)
-R* = (m·S₂* + η·I*) / μ
-C* = c·I* / μ`}</Eq>
+R* = (m·S₂* + n·I*) / μ
+C* = (1−n)·I* / μ`}</Eq>
               <p className="mt-2 text-sm text-ink-2">HPV stays in the population.</p>
             </Card>
           </div>
           <p className="text-sm text-ink-2">
-            With the defaults: S₁* = 438.6, S₂* = 4.83, I* = 40.81, R* = 3,058, C* = 29.15. They add up to about 3,571, the
-            same N* = A/μ as before.
+            With the report’s endemic values (β = 1.42): S₁* = 438.6, S₂* = 35.70, I* = 8.25, R* = 2,501, C* = 587.8. They add up to
+            about 3,571, the same N* = A/μ as before. For the disease-free case (β = 0.42) the report’s S₂ = 44.12 and R = 3,088.7 are
+            reproduced exactly.
           </p>
           {R && (
             <Note title="Derivation and existence condition">
@@ -507,7 +526,7 @@ C* = c·I* / μ`}</Eq>
           <div className="overflow-x-auto rounded-2xl border border-line">
             <table className="w-full min-w-[480px] text-left text-sm">
               <caption className="bg-surface-2 px-4 py-2 text-left text-xs text-muted">
-                Final values after a long run with the default settings. All solvers reach the formula values.
+                Values at time 600 with the report’s endemic settings (β = 1.42). All solvers land on the formula values.
               </caption>
               <thead className="text-xs uppercase tracking-wider text-muted">
                 <tr>
@@ -540,8 +559,8 @@ C* = c·I* / μ`}</Eq>
                 <Eq>{`S₁ⁿ⁺¹ = (S₁ⁿ + h·A) / (1 + h·(δ+μ))
 S₂ⁿ⁺¹ = (S₂ⁿ + h·δ·S₁ⁿ) / (1 + h·(μ+m) + h·(1−m)·β·Iⁿ)
 Iⁿ⁺¹  = (Iⁿ + h·(1−m)·β·S₂ⁿ·Iⁿ) / (1 + h·(μ+1))
-Rⁿ⁺¹  = (Rⁿ + h·m·S₂ⁿ + h·η·Iⁿ) / (1 + h·μ)
-Cⁿ⁺¹  = (Cⁿ + h·c·Iⁿ) / (1 + h·μ)`}</Eq>
+Rⁿ⁺¹  = (Rⁿ + h·m·S₂ⁿ + h·n·Iⁿ) / (1 + h·μ)
+Cⁿ⁺¹  = (Cⁿ + h·(1−n)·Iⁿ) / (1 + h·μ)`}</Eq>
                 <p>
                   Loss terms are treated implicitly (they sit in the denominator) and gains explicitly. Every numerator and
                   denominator is positive, so no group can become negative, for any h. At a fixed point the update reduces
@@ -550,16 +569,16 @@ Cⁿ⁺¹  = (Cⁿ + h·c·Iⁿ) / (1 + h·μ)`}</Eq>
               </Note>
               <Note title="Why Euler needs a small step">
                 <p>
-                  Explicit Euler is stable only when h times the fastest rate in the Jacobian is below about 2. At the
-                  default endemic state the infection term (1−m)·β·I* is about 8.6, so h has to be below roughly 0.23. In our
-                  runs h = 0.2 converged to the formulas and h = 0.5 diverged. That is why the default step is 0.1 and the
-                  server rejects non-finite results with a clear message.
+                  Explicit Euler is stable only when h times the fastest rate in the Jacobian is small enough (below about 2).
+                  With the report’s endemic values our runs stayed stable up to h = 1 and diverged at h = 1.5. With a much larger
+                  vaccinated-adult infection rate the limit can be far smaller (for example m = 0.5 and β = 0.42 needs h below about
+                  0.3). That is why the default step is 0.1 and the server rejects non-finite results with a clear message.
                 </p>
               </Note>
               <Note title="API (for researchers)">
                 <p>
                   POST JSON with recruitment_rate, transmission_rate, natural_death_rate, transition_rate,
-                  recovery_proportion (this is m), cancer_progression_rate (this is c) and optional stepSize. The reply holds the
+                  recovery_proportion (this is m), recovery_share (this is n) and optional stepSize. The older key cancer_progression_rate (= 1 − n) is still accepted. The reply holds the
                   time series plus R_0, S_1, S_2, I_eq, R_eq, C_eq and endemic. The three endpoints share one model file so
                   results are comparable.
                 </p>
